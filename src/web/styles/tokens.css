@@ -1,0 +1,9 @@
+:root {
+  --p-paper-0: #fefdf9; --p-paper-50: #f6f4ed; --p-paper-100: #eceae2; --p-white: #fff;
+  --p-ink-950: #1b2a2a; --p-ink-700: #425657; --p-ink-600: #53686a; --p-line-400: #c7d1ce;
+  --p-teal-700: #116b65; --p-teal-100: #ddefea; --p-indigo-700: #4d478f; --p-indigo-100: #e9e7f6;
+  --p-amber-800: #805000; --p-amber-100: #f6ebd3; --p-red-700: #a33e3a; --p-red-100: #f7e6e3;
+  --p-green-800: #2d6749; --p-green-100: #e1efe6; --font-ui: Inter, "Segoe UI", system-ui, sans-serif; --font-data: "IBM Plex Mono", Consolas, monospace;
+  --surface-page: var(--p-paper-50); --surface-card: var(--p-paper-0); --text-primary: var(--p-ink-950); --text-secondary: var(--p-ink-600);
+  --border-subtle: var(--p-line-400); --action-primary: var(--p-teal-700); --focus-ring: var(--p-teal-700);
+}
