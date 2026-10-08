@@ -33,7 +33,7 @@ The browser suite also verifies 1280×800 first-viewport fit, phone overflow, ax
 
 The local API rejects cross-origin and non-JSON mutations, limits episode starts to 20 per client per minute, and caps each episode at 64 actions. SQLite episodes persist until the database file is removed; there is no automatic retention or multi-user session ownership. This is suitable for the local hackathon demo and should not be exposed as a public multi-user service without those controls.
 
-The learner-facing Skeptic and Examiner use Gemini when `GEMINI_API_KEY` is set. Gemini defaults to `gemini-2.5-flash`; set `GEMINI_MODEL` to choose another supported Gemini model. Keep the key server-side and start the API from a shell that has the variable set. Each request attempt times out after 20 seconds; invalid or unavailable model output falls back to deterministic feedback after at most two attempts.
+The learner-facing Skeptic and Examiner use Gemini when `GEMINI_API_KEY` is set. Gemini defaults to `gemini-3.5-flash-lite`; set `GEMINI_MODEL` to choose another supported Gemini model. Keep the key server-side and start the API from a shell that has the variable set. Each request attempt times out after 20 seconds; invalid or unavailable model output falls back to deterministic feedback after at most two attempts.
 
 FreeLLMPool is reserved for opt-in local provider tests. Start `freellmpool proxy`, set `FREELLMPOOL_ENABLED=1`, and optionally set `FREELLMPOOL_BASE_URL`, `FREELLMPOOL_API_KEY`, and `TWINSLEUTH_MODEL`. Run the live FreeLLMPool smoke test with `FREELLMPOOL_SMOKE=1`. It is never selected for learner-facing agent requests.
 
