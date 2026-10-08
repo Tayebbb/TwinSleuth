@@ -11,7 +11,7 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.getByRole("button", { name: "Commit prediction table" }).click();
   await wait(page);
   await page.screenshot({ path: `${screenshots}/02-skeptic-challenge.png`, fullPage: true });
-  await page.getByRole("button", { name: "Revise to P3" }).click();
+  await page.getByRole("button", { name: "Try P3 instead" }).click();
 
   const p3 = { H1: "completed", H2: "refused", H3: "refused", H4: "completed" };
   for (const [id, outcome] of Object.entries(p3)) await page.getByLabel(`Prediction for ${id}`).selectOption(outcome);

@@ -84,9 +84,21 @@ function App() {
   const [claims, setClaims] = useState<Record<HypothesisId, Claim>>({ H1: { hypothesisId: "H1", stance: "supports", evidenceIds: [] }, H2: { hypothesisId: "H2", stance: "rules_out", evidenceIds: [] }, H3: { hypothesisId: "H3", stance: "rules_out", evidenceIds: [] }, H4: { hypothesisId: "H4", stance: "rules_out", evidenceIds: [] } });
   const [possible, setPossible] = useState<Record<HypothesisId, boolean>>({ H1: true, H2: true, H3: true, H4: true });
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const resetCaseInputs = () => {
+    setSelectedProbe("P1");
+    setPredictions({ H1: "", H2: "", H3: "", H4: "" });
+    setJustification("");
+    setDiagnosis("H1");
+    setConfidence(3);
+    setClaims({ H1: { hypothesisId: "H1", stance: "supports", evidenceIds: [] }, H2: { hypothesisId: "H2", stance: "rules_out", evidenceIds: [] }, H3: { hypothesisId: "H3", stance: "rules_out", evidenceIds: [] }, H4: { hypothesisId: "H4", stance: "rules_out", evidenceIds: [] } });
+    setPossible({ H1: true, H2: true, H3: true, H4: true });
+    setSelectedEvidenceId(null);
+    setError("");
+  };
   const start = () => {
     if (startRequest.current) return startRequest.current;
-    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); if (!response.ok) throw new Error("Could not start episode"); setView(await response.json()); } catch (e) { setError((e as Error).message); } finally { startRequest.current = null; } })();
+    resetCaseInputs();
+    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); if (!response.ok) throw new Error("The practice case could not start. Check that the TwinSleuth practice service is running, then try again."); setView(await response.json()); } catch (e) { setError((e as Error).message === "Failed to fetch" ? "TwinSleuth could not reach the practice service. Check that it is running, then try again." : (e as Error).message); } finally { startRequest.current = null; } })();
     startRequest.current = request;
     return request;
   };
@@ -124,34 +136,56 @@ function App() {
     if (marker) gsap.fromTo(marker, { scale: 0.78 }, { scale: 1, duration: 0.28, ease: "back.out(1.8)" });
   }, [stageIndex]);
   const probe = useMemo(() => view?.public.probes.find((candidate) => candidate.id === selectedProbe), [view, selectedProbe]);
-  if (!view) return <main className="shell loading"><h1>Open a practice episode</h1><button onClick={() => void start()}>Start PIN-9 case</button>{error && <p className="error">{error}</p>}</main>;
+  if (!view) return <main className="shell loading"><h1>{error ? "The practice case did not start" : "Starting the PIN-9 practice case"}</h1><p>{error ? "Check that the TwinSleuth practice service is running, then try again." : "Preparing a simulated case. This usually takes a moment."}</p><button onClick={() => void start()}>{error ? "Try again" : "Start case now"}</button>{error && <p className="error" role="alert">{error}</p>}</main>;
   const act = async (action: Action) => { try { setError(""); setView(await post(view.id, view, action)); } catch (e) { setError((e as Error).message); } };
   const submitProposal = () => void act({ type: "propose", probeId: selectedProbe, predictions });
-  const reviseToP3 = () => { setSelectedProbe("P3"); setPredictions({ H1: "", H2: "", H3: "", H4: "" }); void act({ type: "skeptic-decision", decision: "revise" }); };
+  const reviseForecast = () => {
+    if (selectedProbe === "P1") {
+      setSelectedProbe("P3");
+      setPredictions({ H1: "", H2: "", H3: "", H4: "" });
+    }
+    void act({ type: "skeptic-decision", decision: "revise" });
+  };
+  const replay = () => {
+    setView(null);
+    void start();
+    window.history.replaceState(null, "", "#top");
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
   const lock = () => void act({ type: "lock", diagnosis, confidence, justification, claims: Object.values(claims) });
   const updateClaim = (id: HypothesisId, patch: Partial<Claim>) => setClaims((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
   const armState = view.observations.length ? (view.observations.at(-1)?.probeId === "P4" ? (view.observations.at(-1)?.outcomeId === "stopped-at-95" ? "j2-stopped-95" : "j2-full-range") : view.observations.at(-1)?.probeId === "P3" ? (view.observations.at(-1)?.outcomeId === "completed" ? "p3-key-3-completed" : "p3-key-3-refused") : "initial-refusal") : "initial-refusal";
   const stageGuidance = view.status === "evaluated"
     ? "Your diagnosis has been scored. Review the evidence and debrief."
     : view.pendingAgents?.length
-      ? "Your diagnosis is recorded. Feedback is being prepared."
+      ? "Your prediction is saved. Checking whether this test can separate the remaining causes."
       : stageIndex === 0
         ? "Keep the plausible causes open. Choose a test that could separate them."
       : stageIndex === 1
-          ? "Predict an outcome for each cause before you run the test."
-          : "Compare each observed result with your forecast, then choose the next test.";
+          ? view.proposals[selectedProbe]
+            ? `Your ${selectedProbe} prediction is saved. Run it, or choose another test.`
+            : "Predict an outcome for each cause before you run the test."
+          : "Compare each result with your prediction. Choose another test or defend the cause best supported by the evidence.";
   const activeObservation = view.observations.find((observation) => observation.evidenceId === selectedEvidenceId) ?? view.observations.at(-1);
   const selectedProbeObservation = view.observations.find((observation) => observation.probeId === selectedProbe);
+  const skepticRationale = view.skeptic?.triggers.map((trigger) => {
+    if (trigger.kind === "same-prediction") {
+      const firstHypothesisId = trigger.hypothesisIds[0];
+      const outcome = firstHypothesisId ? view.proposals[view.skeptic!.probeId]?.[firstHypothesisId] : undefined;
+      const label = outcomeLabels[outcome ?? ""] ?? "the same result";
+      return `${trigger.hypothesisIds.join(" and ")} predict ${label}. This test cannot distinguish between these causes.`;
+    }
+    const causes = trigger.hypothesisIds.length ? trigger.hypothesisIds.join(" and ") : "a cause you ruled out";
+    const nextStep = trigger.hypothesisIds.length > 1 ? "Keep them possible, or gather a result that rules them out." : "Keep it possible, or gather a result that rules it out.";
+    return `The revealed evidence still supports ${causes}. ${nextStep}`;
+  }).join(" ");
   const remainingPercent = Math.round((view.remainingMinutes / view.budgetMinutes) * 100);
-  const stages = ["Scope", "Predict", "Observe", "Defend"];
+  const stages = ["Machine", "Test bench", "Evidence", "Diagnosis"];
   return <main className="shell">
     <header className="global-nav">
       <a className="brand-lockup" href="#top" aria-label="TwinSleuth practice bench">
         <span>TwinSleuth</span>
       </a>
-      <nav className="work-nav" aria-label="Case sections">
-        <a href="#machine">Machine</a><a href="#test-bench">Test bench</a><a href="#evidence">Evidence</a><a href="#diagnosis">Diagnosis</a>
-      </nav>
       <span className="session-state"><i aria-hidden="true"/> Practice session</span>
     </header>
 
@@ -162,7 +196,7 @@ function App() {
       </div>
       <aside className="budget" aria-label={`${view.remainingMinutes} minutes remaining of ${view.budgetMinutes}`}>
         <div className="budget-copy"><strong>{view.remainingMinutes} min</strong><span>remaining of {view.budgetMinutes} min</span></div>
-        <div className="budget-track" role="img" aria-label={`${remainingPercent}% of the service window remains`}><span style={{ width: `${remainingPercent}%` }}/></div>
+        <div className="budget-track" role="img" aria-label={`${remainingPercent}% of the service window remains`}><span style={{ transform: `scaleX(${remainingPercent / 100})` }}/></div>
         <span className="simulation-label">Simulated training · no equipment connected</span>
       </aside>
     </header>
@@ -191,32 +225,32 @@ function App() {
           <input type="checkbox" aria-label={`Keep ${hypothesis.id} possible: ${hypothesis.title}`} checked={possible[hypothesis.id]} onChange={(event) => { const next = { ...possible, [hypothesis.id]: event.target.checked }; setPossible(next); void act({ type: "beliefs", possibleHypotheses: Object.entries(next).filter(([, value]) => value).map(([id]) => id) }); }}/>
           <span className="hypothesis-id">{hypothesis.id}</span><span className="hypothesis-copy"><b>{hypothesis.title}</b><small>{hypothesis.detail}</small></span>
         </label>)}</div>
-        <div className="probe-heading"><h3>Choose a diagnostic test</h3><span>6 probes · select one</span></div>
+        <div className="probe-heading"><h3>Choose a diagnostic test</h3><span>6 tests · select one</span></div>
         <div className="probe-list">{view.public.probes.map((candidate) => <button aria-pressed={selectedProbe === candidate.id} disabled={Boolean(view.skeptic)} className={`probe ${selectedProbe === candidate.id ? "active" : ""}`} key={candidate.id} onClick={() => { setSelectedProbe(candidate.id); setPredictions(view.proposals[candidate.id] ?? { H1: "", H2: "", H3: "", H4: "" }); }}>
           <span className="probe-id">{candidate.id}</span><span className="probe-name">{candidate.title}</span><span className="probe-cost">{candidate.costMinutes}<small>min</small></span>
         </button>)}</div>
       </section>
 
       <section className="panel prediction" data-testid="prediction-panel" aria-labelledby="forecast-title">
-        <div className="panel-heading forecast-heading"><div><h2 id="forecast-title">{probe?.id} forecast</h2></div><span className="forecast-cost">{probe?.costMinutes} min</span></div>
+        <div className="panel-heading forecast-heading"><div><h2 id="forecast-title">Predict {probe?.id}'s result</h2></div><span className="forecast-cost">{probe?.costMinutes} min</span></div>
         <p className="probe-description">{probe?.description}</p>
         <div className="forecast-matrix"><div className="matrix-head"><span>Cause</span><span>Expected result before the test</span></div>{view.public.hypotheses.map((hypothesis) => <label className="prediction-row" key={hypothesis.id}><b>{hypothesis.id}</b><select aria-label={`Prediction for ${hypothesis.id}`} value={predictions[hypothesis.id]} disabled={Boolean(view.proposals[selectedProbe])} onChange={(event) => setPredictions({ ...predictions, [hypothesis.id]: event.target.value })}><option value="">Choose an outcome</option>{probe?.outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabels[outcome] ?? outcome}</option>)}</select></label>)}</div>
         <div className="prediction-actions"><button className="commit" disabled={Object.values(predictions).some((value) => !value)} onClick={submitProposal}>Commit prediction table</button></div>
-        {view.skeptic && <div className="skeptic" role="status"><div className="skeptic-heading"><div><b>Skeptic · {view.skeptic.probeId}</b><small>This forecast needs another look</small></div></div><p>{view.skeptic.question}</p><p className="forecast-lock-note">Your committed forecast is locked while you decide whether to revise it or run the test.</p><details><summary>Why this forecast was flagged</summary><p>{view.skeptic.triggers.map((trigger) => trigger.kind === "same-prediction" ? `The committed table gives ${trigger.hypothesisIds.join(" and ")} the same predicted result.` : "A cause was ruled out even though the revealed evidence still supports it.").join(" ")}</p></details><div className="skeptic-actions"><button className="revise" onClick={reviseToP3}>Revise to P3</button><button className="run-anyway" onClick={() => void act({ type: "skeptic-decision", decision: "run-anyway" })}>Run anyway</button></div></div>}
+        {view.skeptic && <div className="skeptic" role="status"><div className="skeptic-heading"><div><b>Skeptic check · {view.skeptic.probeId}</b><small>Review what this test can distinguish</small></div></div><p>{skepticRationale}</p><p className="forecast-lock-note">Your prediction is saved. Choose whether to switch tests or run this one.</p><details><summary>How to read this check</summary><p>Compare the predictions for the causes named above. If they match, this test will not tell those causes apart.</p></details><div className="skeptic-actions"><button className="revise" onClick={reviseForecast}>{selectedProbe === "P1" ? "Try P3 instead" : "Choose another test"}</button><button className="run-anyway" onClick={() => void act({ type: "skeptic-decision", decision: "run-anyway" })}>Run {selectedProbe} anyway</button></div></div>}
         {view.proposals[selectedProbe] && !view.skeptic && (selectedProbeObservation
           ? <div className="run-ready"><span><i aria-hidden="true"/> This probe has already run</span><a className="review-observation" href="#evidence" onClick={() => setSelectedEvidenceId(selectedProbeObservation.evidenceId)}>Review its observation in the evidence ledger</a></div>
-          : <div className="run-ready"><span><i aria-hidden="true"/> Forecast committed</span><button className="run" onClick={() => void act({ type: "run", probeId: selectedProbe })}>Run {selectedProbe}<span>Reveal the observation</span></button></div>)}
+          : <div className="run-ready"><span><i aria-hidden="true"/> Prediction saved</span><button className="run" onClick={() => void act({ type: "run", probeId: selectedProbe })}>Run {selectedProbe}<span>Reveal the result</span></button></div>)}
         <aside className="forecast-method"><b>Choose a result that can separate causes.</b><p>If every cause predicts the same outcome, this probe cannot narrow the list. Compare your rows before committing.</p></aside>
       </section>
 
       <section className="panel evidence" id="evidence" aria-labelledby="evidence-title">
         <div className="panel-heading"><h2 id="evidence-title">Evidence ledger</h2><span className="count-mark">{view.observations.length} {view.observations.length === 1 ? "result" : "results"}</span></div>
-        {view.observations.length === 0 ? <div className="empty-ledger"><div><b>Waiting for the first probe</b><p>Your forecast stays private until its probe runs. Observed results will appear here.</p></div></div> : <>
+        {view.observations.length === 0 ? <div className="empty-ledger"><div><b>Waiting for the first test</b><p>Model predictions stay hidden until a test runs. Results will appear here.</p></div></div> : <>
           <div className="evidence-rail" role="list" aria-label="Probe observation selector">{view.observations.map((observation, index) => <button role="listitem" key={observation.evidenceId} className={`evidence-segment ${activeObservation?.evidenceId === observation.evidenceId ? "active" : ""}`} aria-pressed={activeObservation?.evidenceId === observation.evidenceId} onClick={() => setSelectedEvidenceId(observation.evidenceId)}>
             <span className="evidence-segment-mark" aria-hidden="true">{index + 1}</span><span><b>{observation.probeId}</b><small>{outcomeLabels[observation.outcomeId]}</small></span>
           </button>)}</div>
           {activeObservation && <article className="evidence-detail" aria-live="polite"><header><span className="evidence-id">Evidence {activeObservation.evidenceId.slice(0, 8)}</span><strong>{activeObservation.probeId} · {outcomeLabels[activeObservation.outcomeId]}</strong></header>
-            <div className="evidence-comparison"><div><span>Model forecast</span><p><b>MODEL PREDICTED:</b> {Object.entries(view.revealedForecasts[activeObservation.probeId] ?? {}).map(([id, value]) => `${id} ${outcomeLabels[value] ?? value}`).join(" · ")}</p></div><div><span>Your forecast</span><p><b>YOUR PREDICTION:</b> {Object.entries(view.proposals[activeObservation.probeId] ?? {}).map(([id, value]) => `${id} ${outcomeLabels[value] ?? value}`).join(" · ")}</p></div></div>
+            <div className="evidence-comparison"><div><span>Model's expected result</span><p><b>MODEL PREDICTED:</b> {Object.entries(view.revealedForecasts[activeObservation.probeId] ?? {}).map(([id, value]) => `${id} ${outcomeLabels[value] ?? value}`).join(" · ")}</p></div><div><span>Your prediction</span><p><b>YOUR PREDICTION:</b> {Object.entries(view.proposals[activeObservation.probeId] ?? {}).map(([id, value]) => `${id} ${outcomeLabels[value] ?? value}`).join(" · ")}</p></div></div>
           </article>}
         </>}
       </section>
@@ -239,10 +273,10 @@ function App() {
         <div className="examiner-note"><h3>Examiner notes</h3>{view.traces.filter((trace) => trace.graph === "examiner").map((trace) => <p key={trace.inputSummary}>{trace.output}</p>)}{view.pendingAgents?.includes("examiner") && <p role="status">Examiner feedback is still being prepared.</p>}</div>
         <details className="agent-trace"><summary>Agent trace</summary>{view.traces.map((trace, index) => <pre key={`${trace.graph}-${trace.inputSummary}-${index}`}>{trace.graph} · {trace.status} · {trace.output}</pre>)}</details>
         <div className="truth-reveal"><h3>Truth revealed</h3><span>Server-selected fault</span><strong>{view.truthHypothesis ?? "Revealed after evaluation"}</strong><p>The evidence ledger and checked claims determine the score.</p></div>
-        <button className="replay" onClick={() => { setView(null); void start(); }}>Start a fresh episode</button>
+        <button className="replay" onClick={replay}>Start a fresh episode</button>
       </section>}
     </div>
-    <footer className="workspace-footer"><span>Training simulation · No physical equipment is connected</span><span>Forecasts remain hidden until a probe runs</span></footer>
+    <footer className="workspace-footer"><span>Training simulation · No physical equipment is connected</span><span>Model predictions stay hidden until a test runs</span></footer>
     {error && <div className="toast error" role="alert">{error}</div>}
   </main>;
 }

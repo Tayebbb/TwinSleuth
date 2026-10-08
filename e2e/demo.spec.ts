@@ -18,17 +18,17 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
     await page.getByLabel(`Prediction for ${hypothesis}`).selectOption("refused");
   }
   await page.getByRole("button", { name: "Commit prediction table" }).click();
-  await expect(page.getByText(/Skeptic · P1/i)).toBeVisible();
+  await expect(page.getByText(/Skeptic check · P1/i)).toBeVisible();
   for (const hypothesis of ["H1", "H2", "H3", "H4"]) {
     await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toBeDisabled();
   }
   await expect(page.getByRole("button", { name: /P3/ }).first()).toBeDisabled();
-  await expect(page.getByText("Predict an outcome for each cause before you run the test.")).toBeVisible();
-  await page.getByRole("button", { name: "Revise to P3" }).click();
+  await expect(page.getByText(/Your prediction is saved/)).toBeVisible();
+  await page.getByRole("button", { name: "Try P3 instead" }).click();
   await expect(page.getByLabel("Prediction for H1")).toBeEnabled();
   await expect(page.getByLabel("Prediction for H1")).toHaveValue("");
 
-  await expect(page.getByRole("heading", { name: "P3 forecast" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Predict P3's result" })).toBeVisible();
   const p3 = { H1: "completed", H2: "refused", H3: "refused", H4: "completed" };
   for (const [hypothesis, outcome] of Object.entries(p3)) {
     await page.getByLabel(`Prediction for ${hypothesis}`).selectOption(outcome);
@@ -38,11 +38,11 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
   for (const hypothesis of ["H1", "H2", "H3", "H4"]) {
     await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toBeDisabled();
   }
-  await expect(page.getByText(/Skeptic · P3/i)).toHaveCount(0);
+  await expect(page.getByText(/Skeptic check · P3/i)).toHaveCount(0);
   await expect(p3Run).toBeVisible();
   await p3Run.click();
   await expect(page.getByText("MODEL PREDICTED: H1 Completed · H2 Refused · H3 Refused · H4 Completed")).toBeVisible();
-  await expect(page.getByText("Compare each observed result with your forecast, then choose the next test.")).toBeVisible();
+  await expect(page.getByText("Compare each result with your prediction. Choose another test or defend the cause best supported by the evidence.")).toBeVisible();
   await expect(page.getByTestId("arm-visualization")).toHaveAttribute("data-arm-state", "p3-key-3-completed");
 
   await page.getByRole("button", { name: /P4/ }).first().click();
@@ -51,11 +51,11 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
     await page.getByLabel(`Prediction for ${hypothesis}`).selectOption(outcome);
   }
   await page.getByRole("button", { name: "Commit prediction table" }).click();
-  const p4Skeptic = page.getByText(/SKEPTIC · P4/);
+  const p4Skeptic = page.getByText(/Skeptic check · P4/i);
   const p4Run = page.getByRole("button", { name: /Run P4/ });
   await expect(p4Skeptic.or(p4Run)).toBeVisible();
   if (await p4Skeptic.isVisible()) {
-    await page.getByRole("button", { name: "Run anyway" }).click();
+    await page.getByRole("button", { name: "Run P4 anyway" }).click();
   }
   await p4Run.click();
   await expect(page.getByText("MODEL PREDICTED: H1 Stopped at 95° · H2 Full range · H3 Full range · H4 Full range")).toBeVisible();

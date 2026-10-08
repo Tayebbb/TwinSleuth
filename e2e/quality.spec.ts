@@ -35,15 +35,15 @@ test("locks committed forecasts until the Skeptic decision or probe run", async 
     await page.getByLabel(`Prediction for ${hypothesis}`).selectOption("refused");
   }
   await page.getByRole("button", { name: "Commit prediction table" }).click();
-  await expect(page.getByText(/Skeptic · P1/i)).toBeVisible();
+  await expect(page.getByText(/Skeptic check · P1/i)).toBeVisible();
   for (const hypothesis of ["H1", "H2", "H3", "H4"]) {
     await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toHaveValue("refused");
     await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toBeDisabled();
   }
   await expect(page.getByRole("button", { name: /P3/ }).first()).toBeDisabled();
 
-  await page.getByRole("button", { name: "Revise to P3" }).click();
-  await expect(page.getByRole("heading", { name: "P3 forecast" })).toBeVisible();
+  await page.getByRole("button", { name: "Try P3 instead" }).click();
+  await expect(page.getByRole("heading", { name: "Predict P3's result" })).toBeVisible();
   await expect(page.getByLabel("Prediction for H1")).toBeEnabled();
   await expect(page.getByLabel("Prediction for H1")).toHaveValue("");
   for (const [hypothesis, outcome] of Object.entries({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" })) {
@@ -90,6 +90,27 @@ test("passes automated accessibility and target-size checks at laptop and phone 
   }
 });
 
+test("fresh episode replay resets the case and returns to the top", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /P3/ }).click();
+  for (const [hypothesis, outcome] of Object.entries({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" })) {
+    await page.getByLabel(`Prediction for ${hypothesis}`).selectOption(outcome);
+  }
+  await page.getByRole("button", { name: "Commit prediction table" }).click();
+  await page.getByRole("button", { name: /Run P3/ }).click();
+  await page.getByLabel("Justification").fill("The nearby key completed, so I would test the remaining causes next.");
+  await page.getByRole("button", { name: "Lock diagnosis and score" }).click();
+  await expect(page.getByRole("heading", { name: "Case evaluated" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Start a fresh episode" }).click();
+  await expect(page.getByRole("heading", { name: "Predict P1's result" })).toBeVisible();
+  await expect(page.getByText("Waiting for the first test")).toBeVisible();
+  for (const hypothesis of ["H1", "H2", "H3", "H4"]) {
+    await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toHaveValue("");
+  }
+  await page.waitForFunction(() => window.location.hash === "#top" && window.scrollY === 0);
+});
+
 for (const viewport of [{ name: "laptop", width: 1280, height: 800 }, { name: "phone", width: 390, height: 844 }]) {
   test(`critical diagnosis path works by keyboard with visible focus on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
@@ -107,7 +128,7 @@ for (const viewport of [{ name: "laptop", width: 1280, height: 800 }, { name: "p
     for (const id of ["H1", "H2", "H3", "H4"]) await chooseWithKeyboard(page.getByLabel(`Prediction for ${id}`), 1);
     await page.getByRole("button", { name: "Commit prediction table" }).focus();
     await page.keyboard.press("Enter");
-    await page.getByRole("button", { name: "Revise to P3" }).focus();
+    await page.getByRole("button", { name: "Try P3 instead" }).focus();
     await page.keyboard.press("Enter");
 
     await chooseWithKeyboard(page.getByLabel("Prediction for H1"), 1);
@@ -116,7 +137,7 @@ for (const viewport of [{ name: "laptop", width: 1280, height: 800 }, { name: "p
     await chooseWithKeyboard(page.getByLabel("Prediction for H4"), 1);
     await page.getByRole("button", { name: "Commit prediction table" }).focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByText(/Skeptic · P3/i)).toHaveCount(0);
+    await expect(page.getByText(/Skeptic check · P3/i)).toHaveCount(0);
     await page.getByRole("button", { name: /Run P3/ }).focus();
     await page.keyboard.press("Enter");
 

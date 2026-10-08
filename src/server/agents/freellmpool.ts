@@ -19,7 +19,7 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner"): Promise<un
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.FREELLMPOOL_API_KEY ?? "unused"}`,
     },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       model: process.env.TWINSLEUTH_MODEL ?? "auto",
       max_tokens: graph === "skeptic" ? 180 : 300,
@@ -37,6 +37,6 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner"): Promise<un
 }
 
 export function defaultFreeLLMpoolClient(): StructuredModelClient | undefined {
-  if (process.env.FREELLMPOOL_ENABLED !== "1") return undefined;
+  if (process.env.FREELLMPOOL_ENABLED === "0") return undefined;
   return { invoke };
 }
