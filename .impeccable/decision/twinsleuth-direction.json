@@ -1,0 +1,163 @@
+{
+  "title": "Choose TwinSleuth’s visual direction",
+  "question": "The roll assigned a machine fault-isolation schematic. Keep it, choose another direction, or re-roll the hand.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Fault-Isolation Schematic",
+      "kicker": "THE ROLL",
+      "lineage": "Industrial service prints and machine fault-finding sheets",
+      "thesis": "A live service schematic makes the machine and its candidate faults the center of the diagnostic work.",
+      "palette": ["#edf2ef", "#142b3a", "#087c78", "#efbd3b"],
+      "materials": ["cool drafting stock", "screen-printed signal labels", "precise callout lines"],
+      "viewport": "The PIN-9 arm drawing anchors the left; a compact cause register and probe rail sit beside it; the prediction controls occupy a clearly marked right column; observed rows span the sheet below.",
+      "risk": "Callouts can compete with the action if the active probe and prediction column do not own the strongest contrast.",
+      "raised": [
+        { "from": "challenger-streaming-catalog", "raise": "Cause descriptions reveal on selection while the unselected register stays compact." },
+        { "from": "challenger-metro-tiles", "raise": "One oversized case identifier and a single signal field anchor the first view." },
+        { "from": "challenger-botanical-folio", "raise": "The arm diagram keeps the same component scale across states for honest comparison." }
+      ],
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "case heading and remaining time", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "machine schematic and symptom", "x": 0, "y": 1, "w": 5, "h": 6 },
+          { "label": "cause register", "x": 5, "y": 1, "w": 4, "h": 3 },
+          { "label": "probe rail", "x": 5, "y": 4, "w": 4, "h": 3 },
+          { "label": "active forecast and commit", "x": 9, "y": 1, "w": 3, "h": 6, "accent": true },
+          { "label": "evidence ledger", "x": 0, "y": 7, "w": 12, "h": 3 }
+        ]
+      }
+    },
+    {
+      "id": "model-pick",
+      "label": "Test-Bench Record",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Instrumented laboratory worksheets and experimental run sheets",
+      "thesis": "A single test record puts the learner’s prediction beside the result that will challenge it.",
+      "palette": ["#f7f8f4", "#17364a", "#3459ba", "#d8e84e"],
+      "materials": ["ruled test stock", "measurement marks", "one high-visibility active field"],
+      "viewport": "A large run title opens the sheet; a four-row cause matrix sits beside the machine state; the chosen probe and prediction column are the strongest block; evidence appends as new rows beneath.",
+      "risk": "A table-first layout can underplay the simulated machine if the drawing becomes a thumbnail.",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "run title and timer", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "machine state", "x": 0, "y": 1, "w": 4, "h": 6 },
+          { "label": "cause and prediction matrix", "x": 4, "y": 1, "w": 5, "h": 6 },
+          { "label": "probe selector and commit", "x": 9, "y": 1, "w": 3, "h": 6, "accent": true },
+          { "label": "observed results", "x": 0, "y": 7, "w": 12, "h": 3 }
+        ]
+      }
+    },
+    {
+      "id": "challenger-labanotation",
+      "label": "Labanotation Score",
+      "verdict": "competitive",
+      "lineage": "Labanotation dance scores",
+      "thesis": "A vertical score gives the diagnostic episode a precise, readable order in time.",
+      "palette": ["#ffffff", "#171717", "#b8b8b8", "#efefef"],
+      "materials": ["score paper", "shaded state blocks", "measured staff lines"],
+      "viewport": "A tall central score follows prediction, probe, and result as a staff; the arm and current input stay in a side column.",
+      "risk": "The dance vocabulary could make an industrial training tool feel unfamiliar.",
+      "case": "Strong sequence clarity, weaker maintenance identity; the vertical staff stays an alternate because test order matters.",
+      "board": "https://impeccable.style/worlds/cards/notation-diagram-systems-labanotation.webp",
+      "hero": "https://impeccable.style/worlds/cards/notation-diagram-systems-labanotation-hero.webp"
+    },
+    {
+      "id": "challenger-crouwel-grid",
+      "label": "Constructed Grid",
+      "verdict": "competitive",
+      "lineage": "Wim Crouwel’s grid-built type specimens",
+      "thesis": "A visible construction grid makes every forecast and evidence row feel measured and deliberate.",
+      "palette": ["#ffffff", "#0057ff", "#111111", "#e8eaf0"],
+      "materials": ["modular cells", "offset dots", "one diagonal accent"],
+      "viewport": "The case identifier is built from oversized grid geometry; the working table and cause list snap to the same cells.",
+      "risk": "The specimen’s formal grid could become the subject instead of the diagnosis.",
+      "case": "Strong product clarity through a strict measurement grid, weaker workshop identity; it remains a full alternate.",
+      "board": "https://impeccable.style/worlds/cards/crouwel-grid-specimen.webp",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp"
+    },
+    {
+      "id": "challenger-split-flap",
+      "label": "Concourse State Board",
+      "verdict": "competitive",
+      "lineage": "Rail-concourse split-flap departure boards",
+      "thesis": "A ruled status board makes every state change public, immediate, and easy to scan.",
+      "palette": ["#141718", "#f3f4ed", "#f3a21b", "#9e2528"],
+      "materials": ["matte flap cells", "painted steel", "amber state lamps"],
+      "viewport": "The current case state occupies the board header; each probe and result becomes a row with one stable status column.",
+      "risk": "A board of statuses alone cannot carry the learner’s evidence argument.",
+      "case": "State-change clarity is strong and familiar in operations, but the board must yield space to reasoning; kept as an alternate.",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse.webp",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp"
+    },
+    {
+      "id": "challenger-streaming-catalog",
+      "label": "Streaming Catalog Wall",
+      "verdict": "declined",
+      "lineage": "Streaming catalogs and expanding poster rails",
+      "thesis": "The causes become a wall of browsable tiles, with the focused fault expanding to show its details.",
+      "palette": ["#101114", "#f5f5f5", "#db3156"],
+      "materials": ["full-bleed poster fields", "dark wall", "focused tile"],
+      "viewport": "Large cause tiles form horizontal rails; the selected cause expands and the others recede.",
+      "risk": "A browsing metaphor makes the diagnostic job feel optional and exploratory.",
+      "case": "Both audience identification and product clarity lose to the roll: learners test causes rather than browse a catalog.",
+      "kept": "Focused cause selection reveals its description without expanding every row.",
+      "board": "https://impeccable.style/worlds/cards/pop-culture-shelf-streaming-title-card-wall.webp"
+    },
+    {
+      "id": "challenger-metro-tiles",
+      "label": "Metro Typographic Tiles",
+      "verdict": "declined",
+      "lineage": "Flat, typographic metro tile interfaces",
+      "thesis": "The active diagnostic step floods the screen with one color while oversized words carry navigation.",
+      "palette": ["#000000", "#00d9ef", "#ffffff", "#ee39c4"],
+      "materials": ["flat color planes", "cropped display type", "tile grid"],
+      "viewport": "A panoramic sequence of color fields carries the case name, current test, and next action.",
+      "risk": "Panorama and cropped language would compete with dense evidence and four prediction controls.",
+      "case": "Both audience identification and task clarity lose: the diagnostic work needs steady comparison, not a sliding panorama.",
+      "kept": "One large case identifier and a single high-contrast active field establish focus.",
+      "board": "https://impeccable.style/worlds/cards/digital-design-canon-metro-typographic-tiles.webp"
+    },
+    {
+      "id": "challenger-botanical-folio",
+      "label": "Botanical Sequence Folio",
+      "verdict": "declined",
+      "lineage": "Registered botanical plates across a plant’s life cycle",
+      "thesis": "Each probe is a fixed-scale plate in an illustrated progression from symptom to diagnosis.",
+      "palette": ["#f4f0df", "#283e2d", "#8c332b", "#c6d2bd"],
+      "materials": ["registered plates", "fine captions", "shared baseline"],
+      "viewport": "A series of machine states sits on one baseline, with a caption under each probe.",
+      "risk": "A life-cycle metaphor suggests natural stages that the fault case does not have.",
+      "case": "Both axes lose: a plant’s stages do not map to competing faults or the learner’s test decisions.",
+      "kept": "The machine diagram holds one consistent scale so changes remain comparable.",
+      "board": "https://impeccable.style/worlds/cards/editorial-sequence-montage-botanical-folio-season.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A conventional operations dashboard with a navigation rail and separate forecast, activity, and result panels.",
+    "palette": ["#ffffff", "#1f2937", "#3b82f6"],
+    "materials": ["clean product grid", "standard controls", "separate panels"],
+    "viewport": "A left navigation rail frames a centered dashboard; each task stage lives in its own panel.",
+    "risk": "Familiar structure makes the task legible but does little to make prediction-before-evidence memorable.",
+    "wireframe": {
+      "cols": 12,
+      "rows": 10,
+      "regions": [
+        { "label": "navigation rail", "x": 0, "y": 0, "w": 2, "h": 10 },
+        { "label": "title and summary", "x": 2, "y": 0, "w": 10, "h": 1 },
+        { "label": "scene and facts", "x": 2, "y": 1, "w": 4, "h": 4 },
+        { "label": "beliefs and probes", "x": 2, "y": 5, "w": 4, "h": 4 },
+        { "label": "forecast form", "x": 6, "y": 1, "w": 6, "h": 4, "accent": true },
+        { "label": "evidence panel", "x": 6, "y": 5, "w": 6, "h": 4 }
+      ]
+    }
+  },
+  "steer": true
+}

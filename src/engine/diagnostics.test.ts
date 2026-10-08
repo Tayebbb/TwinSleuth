@@ -75,7 +75,15 @@ describe("PIN-9 diagnostic case", () => {
     })).toContainEqual({ kind: "premature-elimination", hypothesisIds: ["H4"] });
   });
 
-  it("challenges when any two possible causes share a prediction", () => {
+  it("does not challenge a balanced and informative split that matches the optimal P3 strategy", () => {
+    expect(detectSkepticTriggers({
+      possibleHypotheses: ["H1", "H2", "H3", "H4"],
+      evidenceSupportedHypotheses: ["H1", "H2", "H3", "H4"],
+      predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
+    })).toEqual([]);
+  });
+
+  it("challenges when any two possible causes share a prediction in a non-informative grouping", () => {
     expect(detectSkepticTriggers({
       possibleHypotheses: ["H1", "H2", "H3"],
       evidenceSupportedHypotheses: ["H1", "H2", "H3"],

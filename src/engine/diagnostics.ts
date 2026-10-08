@@ -62,15 +62,23 @@ export function detectSkepticTriggers(input: SkepticInput): SkepticTrigger[] {
   const triggers: SkepticTrigger[] = [];
   const { possibleHypotheses, evidenceSupportedHypotheses, predictions } = input;
 
-  if (possibleHypotheses.length > 1) {
+  const currentlyPossible = possibleHypotheses.filter((id) => evidenceSupportedHypotheses.includes(id));
+  if (currentlyPossible.length > 1) {
     const groups = new Map<OutcomeId, HypothesisId[]>();
-    for (const hypothesisId of possibleHypotheses) {
+    for (const hypothesisId of currentlyPossible) {
       const predictedOutcome = predictions[hypothesisId];
       const group = groups.get(predictedOutcome) ?? [];
       group.push(hypothesisId);
       groups.set(predictedOutcome, group);
     }
-    const shared = [...groups.entries()].find(([, hypothesisIds]) => hypothesisIds.length >= 2);
+
+    const samePredictionGroups = [...groups.entries()].filter(([, hypothesisIds]) => hypothesisIds.length >= 2);
+    const isBalancedInformativeSplit = groups.size === 2 && [...groups.values()].every((hypothesisIds) => hypothesisIds.length === 2);
+    const shared = samePredictionGroups.find(([, hypothesisIds]) => {
+      if (hypothesisIds.length >= 3) return true;
+      return !isBalancedInformativeSplit;
+    });
+
     if (shared) {
       triggers.push({
         kind: "same-prediction",

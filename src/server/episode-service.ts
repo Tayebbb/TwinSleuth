@@ -50,6 +50,7 @@ export interface PublicView {
   revealedForecasts: Partial<typeof PIN9_MODEL.forecasts>;
   forecastTable?: typeof PIN9_MODEL.forecasts;
   traces: AgentTrace[];
+  pendingAgents: AgentTrace["graph"][];
   public: {
     hypotheses: typeof HYPOTHESES;
     probes: typeof PROBES;
@@ -66,6 +67,8 @@ function initialState(): State {
 
 export class EpisodeService {
   private readonly db: Database.Database;
+  private readonly pendingAgents = new Map<string, Set<AgentTrace["graph"]>>();
+  private static readonly MAX_ACTIONS_PER_EPISODE = 64;
 
   constructor(filename = ":memory:") {
     this.db = new Database(filename);
@@ -95,12 +98,14 @@ export class EpisodeService {
 
   get(id: string): PublicView {
     const episode = this.db.prepare("SELECT id, status, revision FROM episodes WHERE id = ?").get(id) as { id: string; status: State["status"]; revision: number } | undefined;
-    if (!episode) throw new Error("Episode not found.");
+    if (!episode) throw new NotFoundError("Episode not found.");
     const state = this.fold(id);
     return this.publicView(id, state);
   }
 
   replay(id: string): unknown[] {
+    const exists = this.db.prepare("SELECT 1 FROM episodes WHERE id = ?").get(id);
+    if (!exists) throw new NotFoundError("Episode not found.");
     const state = this.fold(id);
     return this.db.prepare("SELECT seq, type, payload_json AS payload FROM events WHERE episode_id = ? ORDER BY seq").all(id).map((row) => {
       const event = row as { seq: number; type: string; payload: string };
@@ -124,21 +129,23 @@ export class EpisodeService {
   act(id: string, request: unknown): PublicView {
     const parsed = actionRequestSchema.parse(request);
     const actionHash = createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
-    const duplicate = this.db.prepare("SELECT request_hash, response_json FROM actions WHERE episode_id = ? AND action_id = ?").get(id, parsed.actionId) as { request_hash: string; response_json: string } | undefined;
-    if (duplicate) {
-      if (duplicate.request_hash !== actionHash) throw new ConflictError("Action ID was already used with different input.");
-      return JSON.parse(duplicate.response_json) as PublicView;
-    }
-    const current = this.get(id);
-    if (parsed.expectedRevision !== current.revision) throw new ConflictError("Episode revision is stale.");
     const tx = this.db.transaction(() => {
+      const duplicate = this.db.prepare("SELECT request_hash, response_json FROM actions WHERE episode_id = ? AND action_id = ?").get(id, parsed.actionId) as { request_hash: string; response_json: string } | undefined;
+      if (duplicate) {
+        if (duplicate.request_hash !== actionHash) throw new ConflictError("Action ID was already used with different input.");
+        return this.get(id);
+      }
+      const current = this.get(id);
+      if (parsed.expectedRevision !== current.revision) throw new ConflictError("Episode revision is stale.");
+      const count = this.db.prepare("SELECT COUNT(*) AS count FROM actions WHERE episode_id = ?").get(id) as { count: number };
+      if (count.count >= EpisodeService.MAX_ACTIONS_PER_EPISODE) throw new ConflictError("Episode action limit reached.");
       const state = this.fold(id);
       this.apply(id, state, parsed.action);
       const response = this.publicView(id, this.fold(id));
       this.db.prepare("INSERT INTO actions VALUES (?, ?, ?, ?, ?)").run(id, parsed.actionId, actionHash, "complete", JSON.stringify(response));
       return response;
     });
-    return tx();
+    return tx.immediate();
   }
 
   private fold(id: string): State {
@@ -186,7 +193,7 @@ export class EpisodeService {
         if (triggers.length) {
           const challenge = { triggers, probeId };
           this.append(id, "SKEPTIC_CHALLENGED", { challenge });
-          void this.recordSkeptic(id, state, probeId, triggers, predictions).catch(() => undefined);
+          this.trackAgent(id, "skeptic", () => this.recordSkeptic(id, state, probeId, triggers, predictions));
         }
         return;
       }
@@ -226,7 +233,7 @@ export class EpisodeService {
         const next = this.fold(id);
         const score = gradeEpisode(PIN9_MODEL, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.proposals).map(([probeId, predictions]) => ({ probeId: probeId as ProbeId, predictions: predictions as PredictionSet })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
         this.append(id, "EVALUATED", { score });
-        void this.recordExaminer(id, diagnosis, score.claimChecks).catch(() => undefined);
+        this.trackAgent(id, "examiner", () => this.recordExaminer(id, diagnosis, score.claimChecks));
         this.append(id, "TRUTH_REVEALED", { truth: secret.truth_hypothesis_id });
         return;
       }
@@ -234,11 +241,14 @@ export class EpisodeService {
   }
 
   private append(id: string, type: string, payload: unknown): void {
-    const row = this.db.prepare("SELECT COALESCE(MAX(seq), -1) AS seq FROM events WHERE episode_id = ?").get(id) as { seq: number };
-    const seq = row.seq + 1;
-    this.db.prepare("INSERT INTO events VALUES (?, ?, ?, ?, ?)").run(id, seq, type, JSON.stringify(payload), new Date().toISOString());
-    if (type === "AGENT_RUN") return;
-    this.db.prepare("UPDATE episodes SET revision = ?, status = CASE WHEN ? = 'EVALUATED' THEN 'evaluated' ELSE status END WHERE id = ?").run(seq, type, id);
+    const write = () => {
+      const row = this.db.prepare("SELECT COALESCE(MAX(seq), -1) AS seq FROM events WHERE episode_id = ?").get(id) as { seq: number };
+      const seq = row.seq + 1;
+      this.db.prepare("INSERT INTO events VALUES (?, ?, ?, ?, ?)").run(id, seq, type, JSON.stringify(payload), new Date().toISOString());
+      if (type !== "AGENT_RUN") this.db.prepare("UPDATE episodes SET revision = ?, status = CASE WHEN ? = 'EVALUATED' THEN 'evaluated' ELSE status END WHERE id = ?").run(seq, type, id);
+    };
+    if (this.db.inTransaction) write();
+    else this.db.transaction(write).immediate();
   }
 
   private publicView(id: string, state: State): PublicView {
@@ -254,6 +264,7 @@ export class EpisodeService {
       beliefs: state.beliefs, proposals: state.proposals, revisedPredictions: state.revisions, observations: state.observations,
       remainingMinutes: DIAGNOSTIC_BUDGET_MINUTES - state.observations.reduce((sum, observation) => sum + PROBES.find((probe) => probe.id === observation.probeId)!.costMinutes, 0),
       budgetMinutes: DIAGNOSTIC_BUDGET_MINUTES, traces: state.traces,
+      pendingAgents: [...(this.pendingAgents.get(id) ?? [])],
       public: { hypotheses: HYPOTHESES, probes: PROBES, symptom: INITIAL_SYMPTOM, maintenanceLog: MAINTENANCE_LOG, colleagueNote: COLLEAGUE_NOTE, unsafeAction: UNSAFE_ACTION },
       beliefTimeline: state.beliefTimeline,
       evidenceTimeline: state.observations.map((_, index) => ({
@@ -276,29 +287,49 @@ export class EpisodeService {
   }
 
   private async recordSkeptic(id: string, state: State, probeId: ProbeId, triggers: ReturnType<typeof detectSkepticTriggers>, predictions: PredictionSet): Promise<void> {
-    const trace = await runSkeptic({ possibleHypotheses: state.beliefs as HypothesisId[], predictions, observations: state.observations, triggers });
+    const validCount = state.beliefs.length;
+    let trace: AgentTrace;
+    try {
+      trace = await runSkeptic({ possibleHypotheses: state.beliefs as HypothesisId[], predictions, observations: state.observations, triggers });
+    } catch {
+      trace = { graph: "skeptic", status: "fallback", inputSummary: `${probeId}|${validCount}`, output: "What evidence would distinguish the causes that share this prediction?" };
+    }
     this.append(id, "AGENT_RUN", { trace });
   }
 
   private async recordExaminer(id: string, diagnosis: State["diagnosis"], claimChecks: ReturnType<typeof gradeEpisode>["claimChecks"]): Promise<void> {
     if (!diagnosis) return;
-    if (!process.env.ANTHROPIC_API_KEY) {
-      const valid = claimChecks.filter((claim) => claim.valid).length;
-      this.append(id, "AGENT_RUN", {
-        trace: {
-          graph: "examiner",
-          status: "template",
-          inputSummary: `${diagnosis.diagnosis}|${valid}/${claimChecks.length}`,
-          output: `${valid} of ${claimChecks.length} evidence claims checked. Use the cited observations to explain why ${diagnosis.diagnosis} remains supported and alternatives are ruled out.`,
-        },
-      });
-      return;
+    const valid = claimChecks.filter((claim) => claim.valid).length;
+    const inputSummary = `${diagnosis.diagnosis}|${valid}/${claimChecks.length}`;
+    let trace;
+    try {
+      trace = await runExaminer({ diagnosis: diagnosis.diagnosis, justification: diagnosis.justification, claims: diagnosis.claims, claimChecks });
+    } catch {
+      trace = {
+        graph: "examiner" as const,
+        status: "fallback" as const,
+        inputSummary,
+        output: `${valid} of ${claimChecks.length} evidence claims checked. Use the cited observations to explain why ${diagnosis.diagnosis} remains supported and alternatives are ruled out.`,
+      };
     }
-    const trace = await runExaminer({ diagnosis: diagnosis.diagnosis, justification: diagnosis.justification, claims: diagnosis.claims, claimChecks });
     this.append(id, "AGENT_RUN", { trace });
+  }
+
+  private trackAgent(id: string, graph: AgentTrace["graph"], run: () => Promise<void>): void {
+    const pending = this.pendingAgents.get(id) ?? new Set<AgentTrace["graph"]>();
+    pending.add(graph);
+    this.pendingAgents.set(id, pending);
+    void Promise.resolve().then(run).catch(() => undefined).finally(() => {
+      pending.delete(graph);
+      if (pending.size === 0) this.pendingAgents.delete(id);
+    });
   }
 }
 
 export class ConflictError extends Error {
   readonly statusCode = 409;
+}
+
+export class NotFoundError extends Error {
+  readonly statusCode = 404;
 }
