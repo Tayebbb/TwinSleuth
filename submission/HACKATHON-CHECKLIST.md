@@ -27,11 +27,9 @@ Use this checklist before submitting TwinSleuth to Devpost. A checked item has r
 ## Source repository
 
 - [x] Source code is present locally in this project directory.
-- [ ] Create or select an accessible source repository and publish the project source.
+- [x] Source repository published: [github.com/Tayebbb/TwinSleuth](https://github.com/Tayebbb/TwinSleuth).
 - [ ] Add the accessible repository URL to Devpost.
 - [ ] Confirm a judge can clone or browse the repository without requesting access.
-
-The repository steps are intentionally unchecked: the standing project constraint forbids pushing or creating a repository unless the submitter changes that instruction.
 
 ## Compliance and attribution
 
