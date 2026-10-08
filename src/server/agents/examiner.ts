@@ -1,6 +1,6 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
 import { z } from "zod";
-import { defaultFreeLLMpoolClient } from "./freellmpool.js";
+import { defaultGeminiClient } from "./gemini.js";
 import type { AgentTrace, ExaminerAgentInput, StructuredModelClient } from "./types.js";
 
 const answerSchema = z.object({ feedback: z.string().min(1).max(500) });
@@ -23,7 +23,7 @@ function promptFor(input: ExaminerAgentInput): string {
 }
 
 function defaultClient(): StructuredModelClient | undefined {
-  return defaultFreeLLMpoolClient();
+  return defaultGeminiClient();
 }
 
 export async function runExaminer(input: ExaminerAgentInput, client = defaultClient()): Promise<AgentTrace> {

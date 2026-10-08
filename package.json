@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx src/server/dev.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx src/server/dev.ts",
     "build": "vite build",
     "dev:web": "vite",
     "validate:case": "tsx src/scripts/validate-case.ts",

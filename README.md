@@ -23,6 +23,8 @@ npm run capture:demo
 npm run dev
 ```
 
+To enable the learner-facing Gemini feedback, copy `.env.example` to `.env`, add your Gemini key as `GEMINI_API_KEY`, then run `npm run dev`. The `.env` file is ignored by Git and never sent to the browser.
+
 `npm run dev` starts the Fastify API at `http://127.0.0.1:5174` and the Vite browser at `http://127.0.0.1:5173`. The SQLite ledger is written to `twinsleuth.sqlite`; set `TWINSLEUTH_DB` to choose another path. Open the Vite URL in a browser.
 
 `npm run test:e2e` starts the local API and Vite server with Playwright, then exercises the no-key P1 challenge through the P3/P4 observation loop and debrief in Chromium.
@@ -31,10 +33,14 @@ The browser suite also verifies 1280×800 first-viewport fit, phone overflow, ax
 
 The local API rejects cross-origin and non-JSON mutations, limits episode starts to 20 per client per minute, and caps each episode at 64 actions. SQLite episodes persist until the database file is removed; there is no automatic retention or multi-user session ownership. This is suitable for the local hackathon demo and should not be exposed as a public multi-user service without those controls.
 
-The Skeptic and Examiner can send requests through a local FreeLLMPool proxy using its OpenAI-compatible endpoint and automatic model routing. Start FreeLLMPool with `freellmpool proxy`, then set `FREELLMPOOL_ENABLED=1` to enable model-generated feedback. The default proxy URL is `http://127.0.0.1:8080/v1`; set `FREELLMPOOL_BASE_URL` if it runs elsewhere, `FREELLMPOOL_API_KEY` if proxy authentication is enabled, and `TWINSLEUTH_MODEL` to pin a model instead of using `auto`. Each request attempt times out after 10 seconds; invalid or unavailable model output falls back to deterministic feedback after at most two attempts. Set `FREELLMPOOL_SMOKE=1` when running the opt-in live-provider smoke test. The local API accepts only the Vite origin by default; set `UI_ORIGIN` explicitly if the UI is served from another origin.
+The learner-facing Skeptic and Examiner use Gemini when `GEMINI_API_KEY` is set. Gemini defaults to `gemini-2.5-flash`; set `GEMINI_MODEL` to choose another supported Gemini model. Keep the key server-side and start the API from a shell that has the variable set. Each request attempt times out after 20 seconds; invalid or unavailable model output falls back to deterministic feedback after at most two attempts.
+
+FreeLLMPool is reserved for opt-in local provider tests. Start `freellmpool proxy`, set `FREELLMPOOL_ENABLED=1`, and optionally set `FREELLMPOOL_BASE_URL`, `FREELLMPOOL_API_KEY`, and `TWINSLEUTH_MODEL`. Run the live FreeLLMPool smoke test with `FREELLMPOOL_SMOKE=1`. It is never selected for learner-facing agent requests.
+
+See `.env.example` for the required variables. The local API accepts only the Vite origin by default; set `UI_ORIGIN` explicitly if the UI is served from another origin.
 
 ## Case and demo path
 
-Start with the stationary arm and `SAFETY_REJECT`, propose P1 and predict `Refused` for all four causes, answer the Skeptic, and choose **Revise to P3**. The balanced P3 forecast runs directly without another Skeptic detour. Continue with P4 when P3 leaves H1/H4, then submit H1 and four structured evidence claims. The debrief shows the deterministic rubric, evidence rows, path cost versus the exact policy branch, and the agent trace. P1 is challenged but not run in this demo path.
+Start with the stationary arm and `SAFETY_REJECT`, propose P1 and predict `Refused` for all four causes, answer the Skeptic, and choose **Try P3 instead**. The balanced P3 forecast runs directly without another Skeptic detour. Continue with P4 when P3 leaves H1/H4, then submit H1 and four structured evidence claims. The debrief shows the deterministic rubric, evidence rows, path cost versus the exact policy branch, and the agent trace. P1 is challenged but not run in this demo path.
 
 The private forecast matrix lives only under `src/server/case-model/`. The React bundle imports the public catalog, not the private model.

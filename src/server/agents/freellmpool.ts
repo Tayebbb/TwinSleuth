@@ -37,6 +37,6 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner"): Promise<un
 }
 
 export function defaultFreeLLMpoolClient(): StructuredModelClient | undefined {
-  if (process.env.FREELLMPOOL_ENABLED === "0") return undefined;
+  if (process.env.FREELLMPOOL_ENABLED !== "1") return undefined;
   return { invoke };
 }

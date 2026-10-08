@@ -1,6 +1,6 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
 import { z } from "zod";
-import { defaultFreeLLMpoolClient } from "./freellmpool.js";
+import { defaultGeminiClient } from "./gemini.js";
 import type { SkepticAgentInput, AgentTrace, StructuredModelClient } from "./types.js";
 
 const answerSchema = z.object({ question: z.string().min(1).max(280) });
@@ -34,7 +34,7 @@ function promptFor(input: SkepticAgentInput): string {
 }
 
 function defaultClient(): StructuredModelClient | undefined {
-  return defaultFreeLLMpoolClient();
+  return defaultGeminiClient();
 }
 
 export async function runSkeptic(input: SkepticAgentInput, client = defaultClient()): Promise<AgentTrace> {
