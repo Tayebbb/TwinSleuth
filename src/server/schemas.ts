@@ -9,13 +9,13 @@ export const predictionSetSchema = z.record(hypothesisId, z.string());
 export const claimSchema = z.object({
   hypothesisId,
   stance: z.enum(["supports", "rules_out"]),
-  evidenceIds: z.array(z.string().min(1)),
+  evidenceIds: z.array(z.string().min(1).max(100)).max(6),
 });
 
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("beliefs"),
-    possibleHypotheses: z.array(hypothesisId).min(1),
+    possibleHypotheses: z.array(hypothesisId).min(1).max(HYPOTHESES.length),
   }),
   z.object({
     type: z.literal("propose"),
@@ -37,7 +37,7 @@ export const actionSchema = z.discriminatedUnion("type", [
     diagnosis: hypothesisId,
     confidence: z.number().int().min(1).max(5),
     justification: z.string().trim().min(1).max(1200),
-    claims: z.array(claimSchema),
+    claims: z.array(claimSchema).max(HYPOTHESES.length),
   }),
 ]);
 

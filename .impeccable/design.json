@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T20:42:27Z",
+  "title": "Design System: TwinSleuth",
+  "extensions": {
+    "colorMeta": {
+      "stock": { "role": "neutral", "displayName": "Drafting Stock", "canonical": "#e9eff0", "tonalRamp": ["oklch(15% 0.008 210)", "oklch(25% 0.008 210)", "oklch(35% 0.008 210)", "oklch(45% 0.008 210)", "oklch(55% 0.008 210)", "oklch(65% 0.008 210)", "oklch(80% 0.008 210)", "#e9eff0"] },
+      "stock-light": { "role": "neutral", "displayName": "Light Stock", "canonical": "#f6f8f7", "tonalRamp": ["oklch(15% 0.006 160)", "oklch(25% 0.006 160)", "oklch(35% 0.006 160)", "oklch(45% 0.006 160)", "oklch(55% 0.006 160)", "oklch(65% 0.006 160)", "oklch(80% 0.006 160)", "#f6f8f7"] },
+      "stock-shadow": { "role": "neutral", "displayName": "Stock Shade", "canonical": "#d5dfe1", "tonalRamp": ["oklch(15% 0.01 210)", "oklch(25% 0.01 210)", "oklch(35% 0.01 210)", "oklch(45% 0.01 210)", "oklch(55% 0.01 210)", "oklch(65% 0.01 210)", "oklch(80% 0.01 210)", "#d5dfe1"] },
+      "ink": { "role": "neutral", "displayName": "Technical Ink", "canonical": "#17282e", "tonalRamp": ["#17282e", "oklch(25% 0.02 220)", "oklch(35% 0.02 220)", "oklch(45% 0.02 220)", "oklch(55% 0.02 220)", "oklch(65% 0.02 220)", "oklch(80% 0.02 220)", "oklch(95% 0.02 220)"] },
+      "ink-soft": { "role": "neutral", "displayName": "Soft Ink", "canonical": "#40535a", "tonalRamp": ["oklch(15% 0.02 220)", "oklch(25% 0.02 220)", "oklch(35% 0.02 220)", "#40535a", "oklch(55% 0.02 220)", "oklch(65% 0.02 220)", "oklch(80% 0.02 220)", "oklch(95% 0.02 220)"] },
+      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#53656b", "tonalRamp": ["oklch(15% 0.015 220)", "oklch(25% 0.015 220)", "oklch(35% 0.015 220)", "oklch(45% 0.015 220)", "#53656b", "oklch(65% 0.015 220)", "oklch(80% 0.015 220)", "oklch(95% 0.015 220)"] },
+      "rule": { "role": "neutral", "displayName": "Rule Gray", "canonical": "#aebdc0", "tonalRamp": ["oklch(15% 0.01 210)", "oklch(25% 0.01 210)", "oklch(35% 0.01 210)", "oklch(45% 0.01 210)", "oklch(55% 0.01 210)", "#aebdc0", "oklch(80% 0.01 210)", "oklch(95% 0.01 210)"] },
+      "rule-light": { "role": "neutral", "displayName": "Light Rule", "canonical": "#cad4d5", "tonalRamp": ["oklch(15% 0.008 210)", "oklch(25% 0.008 210)", "oklch(35% 0.008 210)", "oklch(45% 0.008 210)", "oklch(55% 0.008 210)", "oklch(65% 0.008 210)", "#cad4d5", "oklch(95% 0.008 210)"] },
+      "teal": { "role": "primary", "displayName": "Signal Teal", "canonical": "#126c68", "tonalRamp": ["oklch(15% 0.06 185)", "oklch(25% 0.06 185)", "oklch(35% 0.06 185)", "oklch(45% 0.06 185)", "#126c68", "oklch(65% 0.06 185)", "oklch(80% 0.06 185)", "oklch(95% 0.06 185)"] },
+      "teal-light": { "role": "primary", "displayName": "Teal Wash", "canonical": "#d7e9e6", "tonalRamp": ["oklch(15% 0.04 185)", "oklch(25% 0.04 185)", "oklch(35% 0.04 185)", "oklch(45% 0.04 185)", "oklch(55% 0.04 185)", "oklch(65% 0.04 185)", "oklch(80% 0.04 185)", "#d7e9e6"] },
+      "amber": { "role": "secondary", "displayName": "Commit Amber", "canonical": "#e8b44a", "tonalRamp": ["oklch(15% 0.1 80)", "oklch(25% 0.1 80)", "oklch(35% 0.1 80)", "oklch(45% 0.1 80)", "oklch(55% 0.1 80)", "#e8b44a", "oklch(80% 0.1 80)", "oklch(95% 0.1 80)"] },
+      "amber-deep": { "role": "secondary", "displayName": "Amber Ink", "canonical": "#50380c", "tonalRamp": ["#50380c", "oklch(25% 0.08 80)", "oklch(35% 0.08 80)", "oklch(45% 0.08 80)", "oklch(55% 0.08 80)", "oklch(65% 0.08 80)", "oklch(80% 0.08 80)", "oklch(95% 0.08 80)"] },
+      "red": { "role": "tertiary", "displayName": "Alarm Red", "canonical": "#9d4540", "tonalRamp": ["oklch(15% 0.1 25)", "oklch(25% 0.1 25)", "oklch(35% 0.1 25)", "oklch(45% 0.1 25)", "#9d4540", "oklch(65% 0.1 25)", "oklch(80% 0.1 25)", "oklch(95% 0.1 25)"] },
+      "green": { "role": "tertiary", "displayName": "Confirmed Green", "canonical": "#24745d", "tonalRamp": ["oklch(15% 0.08 160)", "oklch(25% 0.08 160)", "oklch(35% 0.08 160)", "oklch(45% 0.08 160)", "oklch(55% 0.08 160)", "#24745d", "oklch(80% 0.08 160)", "oklch(95% 0.08 160)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Case Display", "purpose": "Case identity heading." },
+      "headline": { "displayName": "Panel Heading", "purpose": "Major work-area headings." },
+      "title": { "displayName": "Row Title", "purpose": "Cause and row titles." },
+      "body": { "displayName": "Body", "purpose": "Instructions, descriptions, and evidence prose." },
+      "label": { "displayName": "Technical Label", "purpose": "Identifiers, measurements, costs, and table labels." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "control-state", "value": "color .15s ease, background .15s ease, border-color .15s ease", "purpose": "Enabled button interaction states." },
+      { "name": "evidence-arrival", "value": ".35s ease-out", "purpose": "Brief amber wash as a new observation enters the ledger." },
+      { "name": "reduced-motion", "value": "transition-duration: .01ms; animation-duration: .01ms; animation-iteration-count: 1", "purpose": "Honors the user's reduced-motion preference." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "980px" },
+      { "name": "phone", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Dark ink action button with teal hover and visible keyboard focus.",
+      "html": "<button class=\"ds-button\">Start practice</button>",
+      "css": ".ds-button { background: #17282e; color: #f6f8f7; border: 1px solid #17282e; border-radius: 0; padding: .6rem .85rem; min-height: 44px; font: 700 16px/1.42 'Source Sans 3', 'Segoe UI', sans-serif; cursor: pointer; transition: color .15s ease, background .15s ease, border-color .15s ease; } .ds-button:hover:not(:disabled) { background: #126c68; border-color: #126c68; } .ds-button:focus-visible { outline: 3px solid #126c68; outline-offset: 3px; } .ds-button:disabled { opacity: .55; cursor: not-allowed; }"
+    },
+    {
+      "name": "Unsafe Action Button",
+      "kind": "button",
+      "description": "Outlined safety action that fills red on hover.",
+      "html": "<button class=\"ds-unsafe\">Record unsafe idea</button>",
+      "css": ".ds-unsafe { background: transparent; color: #9d4540; border: 1px solid #9d4540; border-radius: 0; padding: .6rem .85rem; min-height: 44px; font: 700 .85rem/1.42 'Source Sans 3', 'Segoe UI', sans-serif; cursor: pointer; transition: color .15s ease, background .15s ease, border-color .15s ease; } .ds-unsafe:hover:not(:disabled) { color: #fff; background: #9d4540; border-color: #9d4540; } .ds-unsafe:focus-visible { outline: 3px solid #126c68; outline-offset: 3px; }"
+    },
+    {
+      "name": "Prediction Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Light-stock expected-result select inside the amber forecast matrix.",
+      "html": "<label class=\"ds-row\"><b>H1</b><select aria-label=\"Prediction for H1\"><option>Select expected result</option><option>Completed</option></select></label>",
+      "css": ".ds-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 47px; border-top: 1px solid rgba(80,56,12,.28); color: #17282e; font: 700 .77rem/1.42 'IBM Plex Mono', Consolas, monospace; } .ds-row select { width: 100%; min-height: 44px; border: 1px solid rgba(80,56,12,.45); border-radius: 0; background: #f6f8f7; color: #17282e; padding: 5px 7px; font: 400 .9rem/1.42 'Source Sans 3', 'Segoe UI', sans-serif; } .ds-row select:focus-visible { outline: 3px solid #126c68; outline-offset: 3px; }"
+    },
+    {
+      "name": "Probe Register Row",
+      "kind": "custom",
+      "description": "Compact ruled selector row with teal selected state.",
+      "html": "<button class=\"ds-probe\" aria-pressed=\"true\"><span>P3</span><strong>PIN-9 key test</strong><small>4m</small></button>",
+      "css": ".ds-probe { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 5px; width: 100%; min-height: 47px; border: 0; border-bottom: 1px solid #cad4d5; border-radius: 0; background: transparent; color: #17282e; padding: 3px 2px; text-align: left; font: 400 .9rem/1.15 'Source Sans 3', 'Segoe UI', sans-serif; cursor: pointer; } .ds-probe span, .ds-probe small { color: #53656b; font: 700 .7rem/1.2 'IBM Plex Mono', Consolas, monospace; } .ds-probe:hover { color: #126c68; border-bottom-color: #126c68; } .ds-probe[aria-pressed=\"true\"] { color: #126c68; border-bottom: 2px solid #126c68; } .ds-probe:focus-visible { outline: 3px solid #126c68; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ruled Work Panel",
+      "kind": "card",
+      "description": "Open work area defined by a dark top rule and compact top padding.",
+      "html": "<section class=\"ds-panel\"><h2>Stationary arm</h2><p>Observed machine state</p></section>",
+      "css": ".ds-panel { min-width: 0; border-top: 2px solid #17282e; padding: 11px 0 0; color: #17282e; font: 400 16px/1.42 'Source Sans 3', 'Segoe UI', sans-serif; } .ds-panel h2 { margin: 0 0 10px; color: #17282e; font: 700 1.5rem/1.05 'Saira Semi Condensed', 'Arial Narrow', sans-serif; } .ds-panel p { color: #40535a; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fault-Isolation Schematic",
+    "overview": "TwinSleuth reads like a working service sheet: cool drafting stock, dark technical ink, ruled registers, and an arm sketch annotated with axis and component callouts. The interface gives the machine and the learner's comparison work clear structure without turning the page into a decorative blueprint. Source Sans 3 carries instructions and descriptions; condensed display type marks section hierarchy; monospaced labels make time, identifiers, and measurements easy to scan.\n\nTeal marks active selection and live state. A signal-amber forecast field isolates the learner's immediate commitment, while red is reserved for safety and warning states. The interface labels the PIN-9 scenario “SIMULATED CASE DATA.” Forecasts and selected fault are server-owned: forecast rows remain private until their probe runs, and the selected fault is disclosed only after evaluation. This is a practice simulator, not equipment control.",
+    "keyCharacteristics": [
+      "Drafting-stock ground with flat, ruled work areas.",
+      "Technical hierarchy through condensed headings and monospaced data labels.",
+      "One amber prediction field against a restrained teal signal system."
+    ],
+    "rules": [
+      { "name": "The Signal Role Rule", "body": "Keep teal for selected, active, and live states; use amber for the prediction commitment; use red for warnings and errors.", "section": "colors" },
+      { "name": "The Data Face Rule", "body": "Use monospaced type for values and operational labels; use Source Sans 3 for prose.", "section": "typography" }
+    ],
+    "dos": [
+      "Do preserve the visible distinction between learner prediction and observed result.",
+      "Do keep the selected fault and unrun forecast rows private until the server's evaluation/probe rules disclose them.",
+      "Do use visible keyboard focus and keep controls operable without a pointer.",
+      "Do retain the case marker “SIMULATED CASE DATA” when presenting the scenario."
+    ],
+    "donts": [
+      "Don't imply that the UI operates physical equipment; it records a simulated unsafe idea as a practice action.",
+      "Don't use amber as a generic accent outside the immediate prediction/commit role without evidence from the established system.",
+      "Don't infer a server-selected fault from the schematic, active controls, or pre-evaluation state."
+    ]
+  }
+}

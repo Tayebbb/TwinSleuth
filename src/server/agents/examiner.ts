@@ -1,7 +1,7 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
-import type { AgentTrace, ExaminerAgentInput } from "./types.js";
+import { defaultFreeLLMpoolClient } from "./freellmpool.js";
+import type { AgentTrace, ExaminerAgentInput, StructuredModelClient } from "./types.js";
 
 const answerSchema = z.object({ feedback: z.string().min(1).max(500) });
 const State = Annotation.Root({
@@ -11,20 +11,30 @@ const State = Annotation.Root({
   trace: Annotation<AgentTrace | undefined>(),
 });
 
-export async function runExaminer(input: ExaminerAgentInput): Promise<AgentTrace> {
+function promptFor(input: ExaminerAgentInput): string {
+  return [
+    "You are the TwinSleuth Examiner. Give concise evidence-linked feedback of at most 500 characters.",
+    "Do not award points, alter the diagnosis, infer an unrevealed cause, or cite IDs not supplied.",
+    `Diagnosis: ${input.diagnosis}`,
+    `Learner justification: ${input.justification}`,
+    `Checked claims: ${input.claimChecks.map((claim) => `${claim.hypothesisId}:${claim.valid ? "valid" : "invalid"}:${claim.reason}`).join(" | ")}`,
+    "Name one strength and one concrete reasoning improvement.",
+  ].join("\n");
+}
+
+function defaultClient(): StructuredModelClient | undefined {
+  return defaultFreeLLMpoolClient();
+}
+
+export async function runExaminer(input: ExaminerAgentInput, client = defaultClient()): Promise<AgentTrace> {
   const valid = input.claimChecks.filter((claim) => claim.valid).length;
   const output = `${valid} of ${input.claimChecks.length} evidence claims checked. Use the cited observations to explain why ${input.diagnosis} remains supported and alternatives are ruled out.`;
-  const requestModel = async () => {
-    if (!process.env.ANTHROPIC_API_KEY) return undefined;
-    const model = new ChatAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.TWINSLEUTH_MODEL ?? "claude-sonnet-5-5", maxTokens: 300 }).withStructuredOutput(answerSchema, { method: "jsonSchema" });
-    const result = await model.invoke(`Give concise evidence-linked feedback for diagnosis ${input.diagnosis}. Valid checked claims: ${valid}/${input.claimChecks.length}. Do not score, infer hidden truth, or cite IDs not supplied.`);
-    return result.feedback;
-  };
   const graph = new StateGraph(State)
-    .addNode("generate", async (state) => { try { return { candidate: await requestModel(), attempt: state.attempt + 1 }; } catch { return { candidate: undefined, attempt: state.attempt + 1 }; } })
+    .addNode("generate", async (state) => { try { return { candidate: client ? await client.invoke(promptFor(input), "examiner") : undefined, attempt: state.attempt + 1 }; } catch { return { candidate: undefined, attempt: state.attempt + 1 }; } })
     .addNode("feedback", async (state) => {
-      if (state.candidate) return { trace: { graph: "examiner" as const, status: "model" as const, inputSummary: `${input.diagnosis}|${valid}/${input.claimChecks.length}`, output: state.candidate.slice(0, 500) } };
-      if (!process.env.ANTHROPIC_API_KEY) return { trace: { graph: "examiner" as const, status: "template" as const, inputSummary: `${input.diagnosis}|${valid}/${input.claimChecks.length}`, output: output.slice(0, 500) } };
+      const parsed = answerSchema.safeParse(state.candidate);
+      if (parsed.success) return { trace: { graph: "examiner" as const, status: "model" as const, inputSummary: `${input.diagnosis}|${valid}/${input.claimChecks.length}`, output: parsed.data.feedback.trim() } };
+      if (!client) return { trace: { graph: "examiner" as const, status: "template" as const, inputSummary: `${input.diagnosis}|${valid}/${input.claimChecks.length}`, output: output.slice(0, 500) } };
       return {};
     })
     .addConditionalEdges("feedback", (state) => state.trace ? END : state.attempt < 2 ? "generate" : "fallback")

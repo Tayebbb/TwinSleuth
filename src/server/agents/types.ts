@@ -21,3 +21,7 @@ export interface ExaminerAgentInput {
   readonly claims: readonly ArgumentClaim[];
   readonly claimChecks: readonly { hypothesisId: HypothesisId; valid: boolean; reason: string }[];
 }
+
+export interface StructuredModelClient {
+  invoke(prompt: string, graph: "skeptic" | "examiner"): Promise<unknown>;
+}

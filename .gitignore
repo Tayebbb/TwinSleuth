@@ -8,3 +8,4 @@ coverage/
 *.sqlite-*
 playwright-report/
 test-results/
+test-results-isolated/
