@@ -7,27 +7,33 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx src/server/dev.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx src/server/dev.ts",
     "build": "vite build",
     "dev:web": "vite",
     "validate:case": "tsx src/scripts/validate-case.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "capture:demo": "tsx src/scripts/capture-demo.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/saira-semi-condensed": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
     "@langchain/anthropic": "^1.5.12",
     "@langchain/core": "^1.2.17",
     "@langchain/langgraph": "^1.4.21",
     "@types/better-sqlite3": "^9.6.0",
     "better-sqlite3": "^12.11.1",
     "fastify": "^5.12.5",
+    "gsap": "^3.15.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.3.0",

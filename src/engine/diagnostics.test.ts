@@ -6,6 +6,41 @@ import { gradeEpisode } from "./score.js";
 import { validateCase } from "./validate-case.js";
 import { PIN9_MODEL } from "../server/case-model/pin9.js";
 
+type ModelHypothesisId = (typeof PIN9_MODEL.hypotheses)[number]["id"];
+type ModelProbeId = (typeof PIN9_MODEL.probes)[number]["id"];
+
+function independentBestExpectedCost(remaining: readonly ModelHypothesisId[], budget: number, used: readonly string[]): number | undefined {
+  if (remaining.length === 1) return 0;
+  const candidates = PIN9_MODEL.probes.flatMap((probe) => {
+    if (used.includes(probe.id) || probe.costMinutes > budget) return [];
+    const partitions = new Map<string, typeof remaining>();
+    for (const hypothesisId of remaining) {
+      const outcome = PIN9_MODEL.forecasts[probe.id][hypothesisId];
+      partitions.set(outcome, [...(partitions.get(outcome) ?? []), hypothesisId]);
+    }
+    if (partitions.size < 2) return [];
+    let expected = probe.costMinutes;
+    for (const group of partitions.values()) {
+      const child = independentBestExpectedCost(group, budget - probe.costMinutes, [...used, probe.id]);
+      if (child === undefined) return [];
+      const probability = group.reduce((total, id) => total + PIN9_MODEL.prior[id], 0)
+        / remaining.reduce((total, id) => total + PIN9_MODEL.prior[id], 0);
+      expected += probability * child;
+    }
+    return [expected];
+  });
+  return candidates.length ? Math.min(...candidates) : undefined;
+}
+
+function validProbeSequences(prefix: readonly ModelProbeId[] = [], cost = 0): readonly (readonly ModelProbeId[])[] {
+  const sequences: (readonly ModelProbeId[])[] = [prefix];
+  for (const probe of PIN9_MODEL.probes) {
+    if (prefix.includes(probe.id) || cost + probe.costMinutes > PIN9_MODEL.budgetMinutes) continue;
+    sequences.push(...validProbeSequences([...prefix, probe.id], cost + probe.costMinutes));
+  }
+  return sequences;
+}
+
 describe("PIN-9 diagnostic case", () => {
   it("validates every cause pair and fits the best policy inside the budget", () => {
     const result = validateCase(PIN9_MODEL);
@@ -22,6 +57,39 @@ describe("PIN-9 diagnostic case", () => {
     expect(policyCostForTruth(PIN9_MODEL, policy, "H4")).toBe(15);
     expect(policyCostForTruth(PIN9_MODEL, policy, "H2")).toBe(10);
     expect(policyCostForTruth(PIN9_MODEL, policy, "H3")).toBe(10);
+  });
+
+  it("matches an independent exhaustive policy-cost search", () => {
+    const policy = optimalPolicy(PIN9_MODEL);
+    const independentlyComputed = independentBestExpectedCost(HYPOTHESES.map(({ id }) => id), PIN9_MODEL.budgetMinutes, []);
+    expect(independentlyComputed).toBe(policy.expectedCostMinutes);
+    for (const truth of HYPOTHESES.map(({ id }) => id)) {
+      expect(policyCostForTruth(PIN9_MODEL, policy, truth)).toBeLessThanOrEqual(PIN9_MODEL.budgetMinutes);
+    }
+  });
+
+  it("keeps every truth and every budget-valid unique probe sequence gradeable and bounded", () => {
+    const sequences = validProbeSequences().filter((sequence) => sequence.length > 0);
+    expect(sequences.length).toBeGreaterThan(100);
+    for (const truth of HYPOTHESES.map(({ id }) => id)) {
+      for (const sequence of sequences) {
+        const probes = sequence.map((probeId, index) => ({
+          evidenceId: `${truth}-${sequence.join("")}-${index}`,
+          probeId,
+          outcomeId: PIN9_MODEL.forecasts[probeId][truth],
+        }));
+        const score = gradeEpisode(PIN9_MODEL, {
+          truth,
+          diagnosis: truth,
+          probes,
+          predictionAttempts: sequence.map((probeId) => ({ probeId, predictions: PIN9_MODEL.forecasts[probeId] })),
+          claims: [],
+          unsafeAttempts: 0,
+        });
+        expect(score.total).toBeGreaterThanOrEqual(0);
+        expect(score.total).toBeLessThanOrEqual(100);
+      }
+    }
   });
 
   it("projects an observation to the correct evidence-supported cause set", () => {
@@ -75,7 +143,15 @@ describe("PIN-9 diagnostic case", () => {
     })).toContainEqual({ kind: "premature-elimination", hypothesisIds: ["H4"] });
   });
 
-  it("challenges when any two possible causes share a prediction", () => {
+  it("does not challenge a balanced and informative split that matches the optimal P3 strategy", () => {
+    expect(detectSkepticTriggers({
+      possibleHypotheses: ["H1", "H2", "H3", "H4"],
+      evidenceSupportedHypotheses: ["H1", "H2", "H3", "H4"],
+      predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
+    })).toEqual([]);
+  });
+
+  it("challenges when any two possible causes share a prediction in a non-informative grouping", () => {
     expect(detectSkepticTriggers({
       possibleHypotheses: ["H1", "H2", "H3"],
       evidenceSupportedHypotheses: ["H1", "H2", "H3"],
