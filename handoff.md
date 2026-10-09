@@ -4,7 +4,7 @@
 
 ## Current state
 
-As of **October 8, 2026**, TwinSleuth is a playable clean-room local MVP for Next Byte Hacks V5. The public case catalog, private forecast model, deterministic engine and scoring, exact solver, Fastify API, file-backed SQLite event ledger, responsive React bench/debrief, bounded Skeptic and Examiner LangGraphs, Playwright browser journey, accessibility checks, and local submission media are implemented. The project has not been pushed, hosted, or submitted.
+As of **October 9, 2026**, TwinSleuth is a playable clean-room local MVP. The public case catalog, private forecast model, deterministic engine and scoring, exact solver, Fastify API, file-backed SQLite event ledger, responsive React bench/debrief, deterministic Skeptic, bounded Examiner LangGraph, Playwright browser journey, accessibility checks, and local submission media are implemented. The project has not been pushed, hosted, or submitted.
 
 The complete no-key demo is P1 challenge → **Revise to P3** → P3 runs directly → P4 runs on the evidence-supported H1/H4 branch → structured diagnosis → deterministic debrief and truth reveal. The UI fits the arm, beliefs, probe controls, and prediction card inside the initial 1280×800 viewport and stacks without horizontal overflow at 390×844. Current reproducible commands and external limitations are recorded in `handoff-agent.md`.
 
@@ -13,7 +13,7 @@ The complete no-key demo is P1 challenge → **Revise to P3** → P3 runs direct
 | Audit finding | Current resolution |
 |---|---|
 | The learner should do the diagnostic reasoning; remove the Investigator and scripted failure. | Applied in the product flow: learner beliefs and four-cause predictions lead; the Skeptic may challenge, but never supplies the answer. |
-| A pre-run agent must not receive the proposed probe’s hidden forecast. | Applied and tested. `SkepticInput` contains learner beliefs/predictions, deterministic trigger metadata, and already revealed observations only. Injected-model tests inspect the actual prompt. |
+| A pre-run agent must not receive the proposed probe’s hidden forecast. | Applied and tested. The deterministic Skeptic consumes learner beliefs/predictions, trigger metadata, and already revealed observations only. |
 | Truth, observations, costs, and scores must be server-authoritative. | Applied in `EpisodeService`, the private case model, and the deterministic grader. Client outcome injection, stale revisions, action collisions, and forecast leakage are tested. |
 | The score must be bounded and independent of LLM judgments. | Applied in the deterministic engine. The exact 100-point rubric is in this brief; model feedback cannot alter score or diagnosis. |
 | Probe costs/outcomes and budget data need structural validation. | Applied in `validateCase`: probe IDs/costs/outcomes are bound to the public catalog; budget/probabilities must be finite and positive; the four-cause prior must be uniform; malformed models stop before pairwise solving. |
@@ -23,7 +23,7 @@ The former audit gates now have executable coverage: all four hidden causes prod
 
 ## Product proposition
 
-**TwinSleuth is a browser practice lab for diagnosing a simulated robot arm.** A learner predicts what each possible cause would produce, chooses a test under a limited maintenance-time budget, and sees the measured result beside the forecast. A LangGraph Skeptic asks a short question when the learner's own predictions cannot distinguish their remaining causes. The learner may revise or run the test anyway. After diagnosis, a deterministic evidence ledger shows how the learner's beliefs changed and what the observations support.
+**TwinSleuth is a browser practice lab for diagnosing a simulated robot arm.** A learner predicts what each possible cause would produce, chooses a test under a limited maintenance-time budget, and sees the measured result beside the forecast. A deterministic Skeptic asks a short question when the learner's own predictions cannot distinguish their remaining causes. The learner may revise or run the test anyway. After diagnosis, a deterministic evidence ledger shows how the learner's beliefs changed and what the observations support.
 
 **Short pitch:** *Practice diagnosing a robot arm by predicting what each test will show, choosing tests under a time budget, and defending a diagnosis with evidence.*
 
@@ -89,7 +89,7 @@ The optimal expected policy starts with P3. If it completes, P4 distinguishes H1
 1. Show the stationary arm, refusal message, E-stop state, maintenance notes, colleague note, and 30-minute budget.
 2. The learner chooses which causes they currently consider possible.
 3. Before a probe, require one prediction for **all four causes**, even for causes they marked ruled out. This keeps the prediction denominator fixed and prevents score gaming by excluding difficult causes.
-4. Trigger the Skeptic only from the learner's committed predictions and already revealed evidence: (a) the learner predicts the same outcome for at least two causes they still consider possible, or (b) they ruled out a cause that remains consistent with prior revealed evidence. Do not trigger from the actual forecast row of the proposed, unrun probe. The LLM receives the trigger result and the learner-facing context, not the private forecast table. The student can revise or run anyway.
+4. Trigger the deterministic Skeptic only from the learner's committed predictions and already revealed evidence: (a) the learner predicts the same outcome for at least two causes they still consider possible, or (b) they ruled out a cause that remains consistent with prior revealed evidence. Do not trigger from the actual forecast row of the proposed, unrun probe. The student can revise or run anyway.
 5. On run, record the measured outcome, deduct cost, animate only the server-returned trajectory, and reveal that probe's authored forecast row. Compare the learner's original and revised predictions separately with the model row.
 6. The learner submits a diagnosis, confidence, a short free-text justification, and one structured evidence claim for each cause. Lock, score, reveal truth, and show the two timelines.
 
@@ -130,7 +130,7 @@ flowchart TD
 - `src/engine/`: pure candidate-set, partition, trigger, case-validation, policy-solver, and grading functions. No LLM or database imports.
 - `src/server/case-model/`: forecast table and uniform prior. Never imported into the browser bundle.
 - `src/server/secrets/`: hidden truth selection and `observe(truth, probe)`; no graph imports this module.
-- `src/server/agents/`: LangGraph workflows. Skeptic inputs exclude current unrun forecast rows; Examiner inputs exclude truth and private forecasts.
+- `src/server/agents/`: deterministic Skeptic and LangGraph Examiner workflow. Skeptic inputs exclude current unrun forecast rows; Examiner inputs exclude truth and private forecasts.
 - `src/server/`: Fastify routes, transactional EpisodeService, SQLite repository, event projection.
 - `src/web/`: React interface; imports public `case/` and shared schemas only.
 
@@ -150,11 +150,11 @@ The server commits core deterministic changes before waiting for any LLM. Persis
 
 ### Agent roles
 
-**Skeptic:** deterministic trigger node → optional structured LLM question → deterministic validation → one retry → template fallback. It asks one Socratic question (≤280 characters), cites only public cause/evidence IDs, and never gives a truth verdict. Its pre-run input contains public symptom, public catalog, learner possible set, submitted predictions, already revealed evidence, and the deterministic trigger; it receives neither truth nor unrun forecast rows.
+**Skeptic:** deterministic trigger → deterministic Socratic question (≤280 characters). It cites only public cause/evidence IDs and never gives a truth verdict. Its pre-run input contains learner possible set, submitted predictions, revealed evidence, and the deterministic trigger; it receives neither truth nor unrun forecast rows.
 
 **Examiner:** after diagnosis lock, use a LangGraph to translate the student's paragraph and **code-checked structured claims** into short, evidence-linked feedback; validate cited IDs and length before returning it, otherwise use a deterministic template. It does not score, set remaining causes, or receive hidden truth/forecast rows. Keep all scoring in pure engine functions.
 
-Use `claude-sonnet-5-5` as a configurable starting model for both graphs unless current API access or budget suggests another. For `ChatAnthropic.withStructuredOutput`, explicitly use `method: "jsonSchema"` with Sonnet 5.5; its default forced function-calling path may be rejected. Keep template mode independent of model choice. Haiku 4.5's currently published retirement commitment is only “not sooner than October 15, 2026,” so do not make it the fixed deadline-week default without rechecking. Keep model IDs in environment configuration.
+The optional Examiner uses the configured Gemini model only after diagnosis lock. The deterministic template remains the no-key/default path; model output is validated, retried once, and cannot alter score, truth, evidence validity, or state.
 
 Compile graphs per request **without interrupts or checkpointers**. Episode history and retries belong to the SQLite service, not a second memory system inside the graph. LangGraph earns its place through visible conditional routing, validation/retry/fallback, and an agent trace drawer. Cap graph integration at 1.5 days; flatten the graph if it blocks the complete product flow. Check current LangGraph docs when implementing stream instrumentation; stream updates identify nodes, while latency/model metadata requires explicit instrumentation.
 

@@ -37,6 +37,7 @@ describe("template agent privacy boundaries", () => {
     expect(new Set(traces.map((trace) => JSON.stringify(trace))).size).toBe(1);
     expect(traces[0]?.status).toBe("template");
     expect(traces[0]?.inputSummary).toBe("H1,H2,H3,H4|");
+    expect(traces[0]?.output).not.toMatch(/P[1-6]|completed|refused|stopped at|full range|reachable|overlap/i);
     expect(traces[0]?.output).not.toContain("completed");
   });
 
@@ -59,28 +60,13 @@ describe("template agent privacy boundaries", () => {
     expect(trace.output).not.toContain("truth");
   });
 
-  it("runs the Skeptic model branch through LangGraph with a privacy-bounded prompt", async () => {
-    const model = sequenceClient([{ question: "Which causes would still remain possible after that result?" }]);
+  it("never accepts model text for the Skeptic, even when it contains a diagnosis", async () => {
+    const model = sequenceClient([{ question: "Diagnosis: H1; run P4." }]);
     const trace = await runSkeptic(skepticInput, model.client);
-    expect(trace.status).toBe("model");
-    expect(model.calls()).toBe(1);
-    expect(model.prompts[0]).toContain("Learner predictions:");
-    expect(model.prompts[0]).not.toContain("hidden cause");
-    expect(model.prompts[0]).not.toContain("model forecast:");
-  });
-
-  it("retries one invalid Skeptic structured response before accepting valid output", async () => {
-    const model = sequenceClient([{ question: "" }, { question: "What evidence would separate those remaining causes?" }]);
-    const trace = await runSkeptic(skepticInput, model.client);
-    expect(trace.status).toBe("model");
-    expect(model.calls()).toBe(2);
-  });
-
-  it("falls back after two Skeptic parse failures", async () => {
-    const model = sequenceClient([{ answer: "wrong shape" }, new Error("provider parse failure")]);
-    const trace = await runSkeptic(skepticInput, model.client);
-    expect(trace.status).toBe("fallback");
-    expect(model.calls()).toBe(2);
+    expect(trace.status).toBe("template");
+    expect(trace.output).not.toContain("Diagnosis");
+    expect(trace.output).not.toContain("H1;");
+    expect(model.calls()).toBe(0);
   });
 
   it("runs, retries, and falls back through the Examiner LangGraph", async () => {

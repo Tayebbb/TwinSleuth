@@ -10,7 +10,7 @@ The shipped local implementation includes:
 - a Fastify API and single-writer, file-backed SQLite event ledger with optimistic concurrency and idempotent actions;
 - server-owned truth, observations, costs, revealed forecast rows, evidence-consistent sets, and score;
 - a responsive React warm-notebook bench and full debrief;
-- bounded LangGraph Skeptic and Examiner flows with structured validation, one retry, injected/mock model coverage, and labeled template/fallback output;
+- deterministic Skeptic prompts plus a bounded LangGraph Examiner flow with structured validation, one retry, injected/mock model coverage, and labeled template/fallback output;
 - a no-key P1 challenge → direct P3 → P4 → diagnosis → debrief browser path;
 - Playwright coverage for the demo, 1280×800 fit, phone overflow, axe accessibility, keyboard operation, focus visibility, 44px targets, and observation-specific arm states;
 - repository-local screenshots, a deterministic WebM capture, submission copy, and a narration/capture script under `submission/`.
@@ -20,7 +20,7 @@ The shipped local implementation includes:
 - The browser submits learner choices only. It cannot select truth, outcomes, cost, evidence-consistent causes, or points.
 - The private forecast matrix remains in `src/server/case-model/` and is absent from the production browser artifact.
 - Before lock, the API exposes authored forecast rows only for completed probes and does not expose the server-derived candidate set.
-- The Skeptic receives learner predictions, learner beliefs, deterministic trigger metadata, and already revealed observations. It does not receive truth or an unrun authored row.
+- The deterministic Skeptic uses learner predictions, learner beliefs, trigger metadata, and already revealed observations. It does not receive truth or an unrun authored row.
 - The Examiner receives the locked learner argument and deterministic claim checks. It cannot score or change state.
 - P1’s all-same prediction table triggers the Skeptic. Choosing **Revise to P3** selects P3; its balanced forecast runs directly with no second Skeptic/run-anyway detour. After P3, P4 discriminates the evidence-supported H1/H4 branch and also runs directly.
 - The arm is stationary for the initial refusal. P3 completed/refused and P4 stopped/full-range observations have distinct accessible SVG states. P4 `stopped-at-95` renders and labels the J2 95-degree stop.

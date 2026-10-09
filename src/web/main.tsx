@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { gsap } from "gsap";
+import { z } from "zod";
 import "@fontsource/saira-semi-condensed/latin-600.css";
 import "@fontsource/saira-semi-condensed/latin-700.css";
 import "@fontsource/source-sans-3/latin-400.css";
@@ -31,10 +32,40 @@ type View = {
 type Action = { type: string; [key: string]: unknown };
 
 const outcomeLabels: Record<string, string> = { refused: "Refused", completed: "Completed", "stopped-at-95": "Stopped at 95°", "full-range": "Full range", reachable: "Reachable", "out-of-reach": "Out of reach", overlap: "Overlap", clear: "Clear" };
+const requestTimeoutMs = 10_000;
+const hypothesisIdSchema = z.enum(["H1", "H2", "H3", "H4"]);
+const probeIdSchema = z.enum(["P1", "P2", "P3", "P4", "P5", "P6"]);
+const outcomeIdSchema = z.enum(["refused", "completed", "stopped-at-95", "full-range", "reachable", "out-of-reach", "overlap", "clear"]);
+const predictionSchema = z.record(hypothesisIdSchema, outcomeIdSchema);
+const viewSchema = z.object({
+  id: z.string().min(1), revision: z.number().int().nonnegative(), status: z.enum(["active", "evaluated"]), beliefs: z.array(hypothesisIdSchema),
+  proposals: z.record(z.string(), predictionSchema), revisedPredictions: z.record(z.string(), predictionSchema),
+  observations: z.array(z.object({ evidenceId: z.string().min(1), probeId: probeIdSchema, outcomeId: outcomeIdSchema })), remainingMinutes: z.number().finite(), budgetMinutes: z.number().positive(),
+  pendingProbe: probeIdSchema.optional(), skeptic: z.object({ question: z.string().min(1).max(280), probeId: probeIdSchema, triggers: z.array(z.object({ kind: z.string(), hypothesisIds: z.array(hypothesisIdSchema) })) }).optional(),
+  diagnosis: z.object({ diagnosis: hypothesisIdSchema, confidence: z.number(), justification: z.string(), claims: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.enum(["supports", "rules_out"]), evidenceIds: z.array(z.string()) })) }).optional(),
+  score: z.object({ total: z.number(), diagnosis: z.number(), evidenceSufficiency: z.number(), predictionAccuracy: z.number(), probeQuality: z.number(), reasoning: z.number(), claimChecks: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.string(), valid: z.boolean(), reason: z.string() })), actualCostMinutes: z.number(), bestPolicyBranchCostMinutes: z.number(), evidenceSupportedHypotheses: z.array(hypothesisIdSchema) }).optional(),
+  truthHypothesis: hypothesisIdSchema.optional(), beliefTimeline: z.array(z.object({ revision: z.number(), beliefs: z.array(hypothesisIdSchema) })), evidenceTimeline: z.array(z.object({ evidenceId: z.string(), supported: z.array(hypothesisIdSchema) })),
+  revealedForecasts: z.partialRecord(probeIdSchema, predictionSchema), forecastTable: z.record(probeIdSchema, predictionSchema).optional(), traces: z.array(z.object({ graph: z.string(), status: z.string(), inputSummary: z.string(), output: z.string() })), pendingAgents: z.array(z.enum(["skeptic", "examiner"])).optional(),
+  public: z.object({ hypotheses: z.array(z.object({ id: hypothesisIdSchema, title: z.string(), detail: z.string() })), probes: z.array(z.object({ id: probeIdSchema, title: z.string(), description: z.string(), costMinutes: z.number(), outcomes: z.array(outcomeIdSchema) })), symptom: z.object({ task: z.string(), controllerCode: z.string(), message: z.string(), estop: z.string() }), maintenanceLog: z.array(z.string()), colleagueNote: z.string(), unsafeAction: z.object({ id: z.string(), label: z.string() }) }),
+});
+
+async function responseMessage(response: Response, fallback: string): Promise<string> {
+  const body = await response.json().catch(() => undefined);
+  const parsed = z.object({ error: z.string().min(1) }).safeParse(body);
+  return parsed.success ? parsed.data.error : fallback;
+}
+
+async function readView(response: Response): Promise<View> {
+  const body = await response.json().catch(() => undefined);
+  const parsed = viewSchema.safeParse(body);
+  if (!parsed.success) throw new Error("TwinSleuth received an invalid practice-case response. Your work was not changed; try again.");
+  return parsed.data as View;
+}
+
 const post = async (id: string, view: View, action: Action) => {
-  const response = await fetch(`/api/episodes/${id}/actions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actionId: crypto.randomUUID(), expectedRevision: view.revision, action }) });
-  if (!response.ok) throw new Error((await response.json()).error ?? "Action failed");
-  return response.json() as Promise<View>;
+  const response = await fetch(`/api/episodes/${id}/actions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actionId: crypto.randomUUID(), expectedRevision: view.revision, action }), signal: AbortSignal.timeout(requestTimeoutMs) });
+  if (!response.ok) throw new Error(await responseMessage(response, "The action could not be saved. Your existing case is still available; try again."));
+  return readView(response);
 };
 
 function ArmSketch({ state }: { state: string }) {
@@ -72,10 +103,12 @@ function ArmSketch({ state }: { state: string }) {
 
 function App() {
   const startRequest = useRef<Promise<void> | null>(null);
+  const initialStartRequested = useRef(false);
   const stageRailRef = useRef<HTMLElement>(null);
   const previousStageIndex = useRef(0);
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
+  const [actionPending, setActionPending] = useState(false);
   const [selectedProbe, setSelectedProbe] = useState<ProbeId>("P1");
   const [predictions, setPredictions] = useState<Record<HypothesisId, string>>({ H1: "", H2: "", H3: "", H4: "" });
   const [justification, setJustification] = useState("");
@@ -98,11 +131,15 @@ function App() {
   const start = () => {
     if (startRequest.current) return startRequest.current;
     resetCaseInputs();
-    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); if (!response.ok) throw new Error("The practice case could not start. Check that the TwinSleuth practice service is running, then try again."); setView(await response.json()); } catch (e) { setError((e as Error).message === "Failed to fetch" ? "TwinSleuth could not reach the practice service. Check that it is running, then try again." : (e as Error).message); } finally { startRequest.current = null; } })();
+    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}", signal: AbortSignal.timeout(requestTimeoutMs) }); if (!response.ok) throw new Error(await responseMessage(response, "The practice case could not start. Check that the TwinSleuth practice service is running, then try again.")); setView(await readView(response)); } catch (e) { const message = (e as Error).message; setError(message === "Failed to fetch" || (e as Error).name === "TimeoutError" ? "TwinSleuth could not reach the practice service in time. No case was created; try again." : message); } finally { startRequest.current = null; } })();
     startRequest.current = request;
     return request;
   };
-  useEffect(() => { void start(); }, []);
+  useEffect(() => {
+    if (initialStartRequested.current) return;
+    initialStartRequested.current = true;
+    void start();
+  }, []);
   useEffect(() => {
     if (!view || !view.pendingAgents?.length) return;
     let stopped = false;
@@ -111,7 +148,7 @@ function App() {
       try {
         const response = await fetch(`/api/episodes/${view.id}`);
         if (response.ok) {
-          const latest = await response.json() as View;
+          const latest = await readView(response);
           if (!stopped) setView((current) => {
             if (!current || current.id !== latest.id || latest.revision > current.revision) return latest;
             if (latest.revision === current.revision && (latest.traces.length > current.traces.length || JSON.stringify(latest.pendingAgents) !== JSON.stringify(current.pendingAgents))) return { ...current, traces: latest.traces, pendingAgents: latest.pendingAgents ?? [] };
@@ -119,7 +156,7 @@ function App() {
           });
         }
       } catch {
-        // Keep polling after transient network failures while the Examiner is pending.
+        if (!stopped) setError("Examiner feedback could not be refreshed. Your scored case is saved; try refreshing the page.");
       } finally {
         if (!stopped) timer = window.setTimeout(() => void refresh(), 1200);
       }
@@ -137,7 +174,24 @@ function App() {
   }, [stageIndex]);
   const probe = useMemo(() => view?.public.probes.find((candidate) => candidate.id === selectedProbe), [view, selectedProbe]);
   if (!view) return <main className="shell loading"><h1>{error ? "The practice case did not start" : "Starting the PIN-9 practice case"}</h1><p>{error ? "Check that the TwinSleuth practice service is running, then try again." : "Preparing a simulated case. This usually takes a moment."}</p><button onClick={() => void start()}>{error ? "Try again" : "Start case now"}</button>{error && <p className="error" role="alert">{error}</p>}</main>;
-  const act = async (action: Action) => { try { setError(""); setView(await post(view.id, view, action)); } catch (e) { setError((e as Error).message); } };
+  const act = async (action: Action) => {
+    if (actionPending) return;
+    try { setActionPending(true); setError(""); setView(await post(view.id, view, action)); }
+    catch (e) {
+      const message = (e as Error).message;
+      if (message === "Episode revision is stale.") {
+        try {
+          const response = await fetch(`/api/episodes/${view.id}`, { signal: AbortSignal.timeout(requestTimeoutMs) });
+          if (!response.ok) throw new Error("refresh failed");
+          setView(await readView(response));
+          setError("This case changed in another tab. The latest state is loaded; retry your action.");
+        } catch {
+          setError("This case changed in another tab. Refresh the page before retrying.");
+        }
+      } else setError((e as Error).name === "TimeoutError" ? "The action timed out. Your existing case may still be valid; refresh before retrying." : message);
+    }
+    finally { setActionPending(false); }
+  };
   const submitProposal = () => void act({ type: "propose", probeId: selectedProbe, predictions });
   const reviseForecast = () => {
     if (selectedProbe === "P1") {
@@ -158,7 +212,7 @@ function App() {
   const stageGuidance = view.status === "evaluated"
     ? "Your diagnosis has been scored. Review the evidence and debrief."
     : view.pendingAgents?.length
-      ? "Your prediction is saved. Checking whether this test can separate the remaining causes."
+      ? "Reviewing whether this test can separate the remaining causes."
       : stageIndex === 0
         ? "Keep the plausible causes open. Choose a test that could separate them."
       : stageIndex === 1
@@ -216,13 +270,13 @@ function App() {
         <dl className="scene-facts"><div><dt>Command</dt><dd>{view.public.symptom.task}</dd></div><div><dt>Emergency stop</dt><dd><span className="state-live">●</span> {view.public.symptom.estop || "Clear"}</dd></div></dl>
         <details className="maintenance"><summary>Maintenance notes <span aria-hidden="true">+</span></summary><ul>{view.public.maintenanceLog.map((note) => <li key={note}>{note}</li>)}</ul></details>
         <blockquote><span>Operator handoff</span>“{view.public.colleagueNote}”</blockquote>
-        <button className="unsafe" onClick={() => void act({ type: "unsafe" })}><span>Log unsafe suggestion<small>{view.public.unsafeAction.label}</small></span></button>
+        <button className="unsafe" disabled={actionPending} onClick={() => void act({ type: "unsafe" })}><span>Log unsafe suggestion<small>{view.public.unsafeAction.label}</small></span></button>
       </section>
 
       <section className="panel worklist" id="test-bench" data-testid="beliefs-probes-panel" aria-labelledby="hypothesis-title">
         <div className="panel-heading"><h2 id="hypothesis-title">Possible causes</h2><span className="count-mark">{Object.values(possible).filter(Boolean).length} of 4</span></div>
         <div className="hypotheses">{view.public.hypotheses.map((hypothesis) => <label className={`hypothesis ${possible[hypothesis.id] ? "selected" : ""}`} key={hypothesis.id}>
-          <input type="checkbox" aria-label={`Keep ${hypothesis.id} possible: ${hypothesis.title}`} checked={possible[hypothesis.id]} onChange={(event) => { const next = { ...possible, [hypothesis.id]: event.target.checked }; setPossible(next); void act({ type: "beliefs", possibleHypotheses: Object.entries(next).filter(([, value]) => value).map(([id]) => id) }); }}/>
+          <input type="checkbox" disabled={actionPending} aria-label={`Keep ${hypothesis.id} possible: ${hypothesis.title}`} checked={possible[hypothesis.id]} onChange={(event) => { const next = { ...possible, [hypothesis.id]: event.target.checked }; setPossible(next); void act({ type: "beliefs", possibleHypotheses: Object.entries(next).filter(([, value]) => value).map(([id]) => id) }); }}/>
           <span className="hypothesis-id">{hypothesis.id}</span><span className="hypothesis-copy"><b>{hypothesis.title}</b><small>{hypothesis.detail}</small></span>
         </label>)}</div>
         <div className="probe-heading"><h3>Choose a diagnostic test</h3><span>6 tests · select one</span></div>
@@ -235,11 +289,11 @@ function App() {
         <div className="panel-heading forecast-heading"><div><h2 id="forecast-title">Predict {probe?.id}'s result</h2></div><span className="forecast-cost">{probe?.costMinutes} min</span></div>
         <p className="probe-description">{probe?.description}</p>
         <div className="forecast-matrix"><div className="matrix-head"><span>Cause</span><span>Expected result before the test</span></div>{view.public.hypotheses.map((hypothesis) => <label className="prediction-row" key={hypothesis.id}><b>{hypothesis.id}</b><select aria-label={`Prediction for ${hypothesis.id}`} value={predictions[hypothesis.id]} disabled={Boolean(view.proposals[selectedProbe])} onChange={(event) => setPredictions({ ...predictions, [hypothesis.id]: event.target.value })}><option value="">Choose an outcome</option>{probe?.outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabels[outcome] ?? outcome}</option>)}</select></label>)}</div>
-        <div className="prediction-actions"><button className="commit" disabled={Object.values(predictions).some((value) => !value)} onClick={submitProposal}>Commit prediction table</button></div>
+        <div className="prediction-actions"><button className="commit" disabled={actionPending || Object.values(predictions).some((value) => !value)} onClick={submitProposal}>Commit prediction table</button></div>
         {view.skeptic && <div className="skeptic" role="status"><div className="skeptic-heading"><div><b>Skeptic check · {view.skeptic.probeId}</b><small>Review what this test can distinguish</small></div></div><p>{skepticRationale}</p><p className="forecast-lock-note">Your prediction is saved. Choose whether to switch tests or run this one.</p><details><summary>How to read this check</summary><p>Compare the predictions for the causes named above. If they match, this test will not tell those causes apart.</p></details><div className="skeptic-actions"><button className="revise" onClick={reviseForecast}>{selectedProbe === "P1" ? "Try P3 instead" : "Choose another test"}</button><button className="run-anyway" onClick={() => void act({ type: "skeptic-decision", decision: "run-anyway" })}>Run {selectedProbe} anyway</button></div></div>}
         {view.proposals[selectedProbe] && !view.skeptic && (selectedProbeObservation
           ? <div className="run-ready"><span><i aria-hidden="true"/> This probe has already run</span><a className="review-observation" href="#evidence" onClick={() => setSelectedEvidenceId(selectedProbeObservation.evidenceId)}>Review its observation in the evidence ledger</a></div>
-          : <div className="run-ready"><span><i aria-hidden="true"/> Prediction saved</span><button className="run" onClick={() => void act({ type: "run", probeId: selectedProbe })}>Run {selectedProbe}<span>Reveal the result</span></button></div>)}
+          : <div className="run-ready"><span><i aria-hidden="true"/> Prediction saved</span><button className="run" disabled={actionPending} onClick={() => void act({ type: "run", probeId: selectedProbe })}>Run {selectedProbe}<span>Reveal the result</span></button></div>)}
         <aside className="forecast-method"><b>Choose a result that can separate causes.</b><p>If every cause predicts the same outcome, this probe cannot narrow the list. Compare your rows before committing.</p></aside>
       </section>
 
@@ -259,7 +313,7 @@ function App() {
         <summary className="diagnosis-summary"><h2 id="diagnosis-title">Defend your diagnosis</h2><span className="diagnosis-summary-note">{view.observations.length ? "Use the observations to support each claim" : "Open when you are ready to commit"}</span></summary>
         <div className="diagnosis-body"><div className="diagnosis-form"><label>Most likely cause<select value={diagnosis} onChange={(event) => setDiagnosis(event.target.value as HypothesisId)}>{view.public.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label><label>Confidence<input type="number" min="1" max="5" value={confidence} onChange={(event) => setConfidence(Number(event.target.value))}/><small>1 = tentative · 5 = certain</small></label><label className="justification">Justification<textarea value={justification} onChange={(event) => setJustification(event.target.value)} placeholder="Which observations support this cause? What rules out the alternatives?"/></label></div>
           <div className="claims"><h3>Evidence claims</h3>{view.public.hypotheses.map((item) => <fieldset key={item.id}><legend><b>{item.id}</b> · {item.title}</legend><select aria-label={`Stance for ${item.id} claim`} value={claims[item.id].stance} onChange={(event) => updateClaim(item.id, { stance: event.target.value as Claim["stance"] })}><option value="supports">Supports</option><option value="rules_out">Rules out</option></select><select aria-label={`Evidence for ${item.id}`} value={claims[item.id].evidenceIds[0] ?? ""} onChange={(event) => updateClaim(item.id, { evidenceIds: event.target.value ? [event.target.value] : [] })}><option value="">Cite an observation</option>{view.observations.map((entry) => <option key={entry.evidenceId} value={entry.evidenceId}>{entry.probeId} · {outcomeLabels[entry.outcomeId]}</option>)}</select></fieldset>)}</div>
-          <button className="lock" disabled={!justification} onClick={lock}>Lock diagnosis and score</button>
+          <button className="lock" disabled={actionPending || !justification} onClick={lock}>Lock diagnosis and score</button>
         </div>
       </details>}
 

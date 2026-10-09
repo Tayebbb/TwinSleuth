@@ -17,6 +17,6 @@ export default defineConfig({
     url: "http://127.0.0.1:5173",
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { ANTHROPIC_API_KEY: "", DEMO_TRUTH: "H1", TWINSLEUTH_DB: ":memory:" },
+    env: { ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "", DEMO_TRUTH: "H1", TWINSLEUTH_DB: ":memory:" },
   },
 });

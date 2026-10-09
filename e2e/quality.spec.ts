@@ -29,6 +29,65 @@ test("initial bench fits the 1280x800 work viewport", async ({ page }) => {
   await expectInsideViewport(page, page.getByRole("button", { name: "Commit prediction table" }));
 });
 
+test("shows a recoverable error instead of rendering a malformed episode response", async ({ page }) => {
+  await page.route("**/api/episodes", async (route) => {
+    if (route.request().method() === "POST") await route.fulfill({ contentType: "application/json", body: "{}" });
+    else await route.continue();
+  });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "The practice case did not start" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("invalid practice-case response");
+});
+
+test("explains an unavailable practice service and offers a safe retry", async ({ page }) => {
+  await page.route("**/api/episodes", (route) => route.abort());
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "The practice case did not start" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("could not reach the practice service");
+});
+
+test("disables a committed prediction action while its request is in flight", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /P3/ }).click();
+  for (const [hypothesis, outcome] of Object.entries({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" })) {
+    await page.getByLabel(`Prediction for ${hypothesis}`).selectOption(outcome);
+  }
+  const commit = page.getByRole("button", { name: "Commit prediction table" });
+  let actions = 0;
+  await page.route("**/api/episodes/*/actions", async (route) => {
+    actions += 1;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await route.continue();
+  });
+  await commit.click();
+  await expect(commit).toBeDisabled();
+  await commit.click({ force: true });
+  await expect(page.getByRole("button", { name: /Run P3/ })).toBeVisible();
+  expect(actions).toBe(1);
+});
+
+test("refreshes the public projection after a stale action revision", async ({ page }) => {
+  let refreshed = false;
+  await page.route("**/api/episodes/*/actions", async (route) => {
+    await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Episode revision is stale." }) });
+  });
+  await page.route("**/api/episodes/*", async (route) => {
+    if (route.request().method() === "GET") refreshed = true;
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /P3/ }).click();
+  for (const [hypothesis, outcome] of Object.entries({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" })) {
+    await page.getByLabel(`Prediction for ${hypothesis}`).selectOption(outcome);
+  }
+  await page.getByRole("button", { name: "Commit prediction table" }).click();
+  await expect(page.getByRole("alert")).toContainText("This case changed in another tab. The latest state is loaded; retry your action.");
+  expect(refreshed).toBe(true);
+  await expect(page.getByRole("button", { name: "Commit prediction table" })).toBeEnabled();
+});
+
 test("locks committed forecasts until the Skeptic decision or probe run", async ({ page }) => {
   await page.goto("/");
   for (const hypothesis of ["H1", "H2", "H3", "H4"]) {
@@ -73,8 +132,16 @@ test("does not serve local SQLite files through the Vite development server", as
   }
 });
 
-test("passes automated accessibility and target-size checks at laptop and phone sizes", async ({ page }) => {
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+test("passes automated accessibility, overflow, and target-size checks across required viewports", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("requestfailed", (request) => failedRequests.push(`${request.method()} ${request.url()}`));
+  for (const viewport of [
+    { width: 320, height: 568 }, { width: 320, height: 800 }, { width: 360, height: 800 }, { width: 390, height: 844 },
+    { width: 412, height: 915 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }, { width: 1280, height: 800 },
+    { width: 1440, height: 900 }, { width: 1920, height: 1080 },
+  ]) {
     await page.setViewportSize(viewport);
     await page.goto("/");
     const results = await new AxeBuilder({ page }).analyze();
@@ -88,6 +155,8 @@ test("passes automated accessibility and target-size checks at laptop and phone 
       expect(box?.width, `target ${index} width at ${viewport.width}px`).toBeGreaterThanOrEqual(44);
     }
   }
+  expect(consoleErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
 });
 
 test("fresh episode replay resets the case and returns to the top", async ({ page }) => {

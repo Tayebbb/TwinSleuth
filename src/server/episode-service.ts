@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
+import { z } from "zod";
 import { CASE_ID, COLLEAGUE_NOTE, DIAGNOSTIC_BUDGET_MINUTES, HYPOTHESES, INITIAL_SYMPTOM, MAINTENANCE_LOG, PROBES, UNSAFE_ACTION } from "../case/catalog.js";
 import type { HypothesisId, ProbeId, OutcomeId } from "../case/catalog.js";
 import { consistentHypotheses, detectSkepticTriggers, validatePredictions } from "../engine/diagnostics.js";
@@ -10,6 +11,42 @@ import { runExaminer } from "./agents/examiner.js";
 import { runSkeptic } from "./agents/skeptic.js";
 import type { AgentTrace } from "./agents/types.js";
 import { type Action, actionRequestSchema } from "./schemas.js";
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function parseStoredObject(payload: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    const result = z.record(z.string(), z.unknown()).safeParse(parsed);
+    if (!result.success) throw new Error("not an object");
+    return result.data;
+  } catch {
+    throw new Error("Episode data is corrupted.");
+  }
+}
+
+const persistedEventTypeSchema = z.enum([
+  "EPISODE_STARTED", "BELIEFS_UPDATED", "PROBE_PROPOSED", "PROBE_REVISED", "PROBE_OBSERVED", "UNSAFE_REFUSED",
+  "SKEPTIC_CHALLENGED", "SKEPTIC_RESOLVED", "DIAGNOSIS_LOCKED", "EVALUATED", "AGENT_RUN", "TRUTH_REVEALED", "FORECAST_REVEALED",
+]);
+const persistedPublicViewSchema = z.object({
+  id: z.string().min(1),
+  revision: z.number().int().nonnegative(),
+  status: z.enum(["active", "evaluated"]),
+}).passthrough();
+
+function parseStoredEvent(type: string, payload: string): { type: z.infer<typeof persistedEventTypeSchema>; payload: Record<string, unknown> } {
+  const eventType = persistedEventTypeSchema.safeParse(type);
+  if (!eventType.success) throw new Error("Episode data is corrupted.");
+  return { type: eventType.data, payload: parseStoredObject(payload) };
+}
 
 interface State {
   revision: number;
@@ -109,8 +146,9 @@ export class EpisodeService {
     const state = this.fold(id);
     return this.db.prepare("SELECT seq, type, payload_json AS payload FROM events WHERE episode_id = ? ORDER BY seq").all(id).map((row) => {
       const event = row as { seq: number; type: string; payload: string };
-      const payload = JSON.parse(event.payload) as Record<string, unknown>;
-      if (event.type === "SKEPTIC_CHALLENGED" && state.status !== "evaluated") {
+      const stored = parseStoredEvent(event.type, event.payload);
+      const payload = stored.payload;
+      if (stored.type === "SKEPTIC_CHALLENGED" && state.status !== "evaluated") {
         const challenge = payload.challenge as { triggers?: { kind: string; hypothesisIds?: string[] }[]; probeId?: string } | undefined;
         if (challenge?.triggers) {
           payload.challenge = {
@@ -121,19 +159,21 @@ export class EpisodeService {
           };
         }
       }
-      if (event.type === "TRUTH_REVEALED" && state.status !== "evaluated") return { seq: event.seq, type: event.type, payload: {} };
-      return { seq: event.seq, type: event.type, payload };
+      if (stored.type === "TRUTH_REVEALED" && state.status !== "evaluated") return { seq: event.seq, type: stored.type, payload: {} };
+      return { seq: event.seq, type: stored.type, payload };
     });
   }
 
   act(id: string, request: unknown): PublicView {
     const parsed = actionRequestSchema.parse(request);
-    const actionHash = createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
+    const actionHash = createHash("sha256").update(stableJson(parsed)).digest("hex");
     const tx = this.db.transaction(() => {
       const duplicate = this.db.prepare("SELECT request_hash, response_json FROM actions WHERE episode_id = ? AND action_id = ?").get(id, parsed.actionId) as { request_hash: string; response_json: string } | undefined;
       if (duplicate) {
         if (duplicate.request_hash !== actionHash) throw new ConflictError("Action ID was already used with different input.");
-        return this.get(id);
+        const cached = persistedPublicViewSchema.safeParse(parseStoredObject(duplicate.response_json));
+        if (!cached.success) throw new Error("Episode data is corrupted.");
+        return cached.data as unknown as PublicView;
       }
       const current = this.get(id);
       if (parsed.expectedRevision !== current.revision) throw new ConflictError("Episode revision is stale.");
@@ -152,23 +192,27 @@ export class EpisodeService {
     const state = initialState();
     const rows = this.db.prepare("SELECT type, payload_json FROM events WHERE episode_id = ? ORDER BY seq").all(id) as { type: string; payload_json: string }[];
     for (const row of rows) {
-      const payload = JSON.parse(row.payload_json) as Partial<State> & { trace?: AgentTrace; proposal?: { probeId: string; predictions: PredictionSet }; revision?: PredictionSet; observation?: Observation; challenge?: State["pendingChallenge"]; diagnosis?: State["diagnosis"]; score?: State["score"]; truth?: HypothesisId };
-      if (row.type === "BELIEFS_UPDATED" && payload.beliefs) {
+      const stored = parseStoredEvent(row.type, row.payload_json);
+      const payload = stored.payload as Partial<State> & { trace?: AgentTrace; proposal?: { probeId: string; predictions: PredictionSet }; revision?: PredictionSet; observation?: Observation; challenge?: State["pendingChallenge"]; diagnosis?: State["diagnosis"]; score?: State["score"]; truth?: HypothesisId };
+      if (stored.type === "BELIEFS_UPDATED" && payload.beliefs) {
         const beliefs = payload.beliefs as HypothesisId[];
         state.beliefs = beliefs;
         state.beliefTimeline.push({ revision: state.revision + 1, beliefs: [...beliefs] });
       }
-      if (row.type === "PROBE_PROPOSED" && payload.proposal) state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
-      if (row.type === "PROBE_REVISED" && payload.proposal) state.revisions[payload.proposal.probeId] = payload.proposal.predictions;
-      if (row.type === "PROBE_OBSERVED" && payload.observation) { state.observations.push(payload.observation); delete state.pendingProbe; delete state.pendingChallenge; }
-      if (row.type === "UNSAFE_REFUSED") state.unsafeAttempts += 1;
-      if (row.type === "SKEPTIC_CHALLENGED" && payload.challenge) state.pendingChallenge = payload.challenge;
-      if (row.type === "SKEPTIC_RESOLVED") delete state.pendingChallenge;
-      if (row.type === "DIAGNOSIS_LOCKED" && payload.diagnosis) state.diagnosis = payload.diagnosis;
-      if (row.type === "EVALUATED" && payload.score) { state.score = payload.score; state.status = "evaluated"; }
-      if (row.type === "AGENT_RUN" && payload.trace) state.traces.push(payload.trace);
-      if (row.type === "TRUTH_REVEALED" && payload.truth) state.revealedTruth = payload.truth;
-      if (row.type !== "AGENT_RUN") state.revision += 1;
+      if (stored.type === "PROBE_PROPOSED" && payload.proposal) state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
+      if (stored.type === "PROBE_REVISED" && payload.proposal) {
+        state.revisions[payload.proposal.probeId] = payload.proposal.predictions;
+        state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
+      }
+      if (stored.type === "PROBE_OBSERVED" && payload.observation) { state.observations.push(payload.observation); delete state.pendingProbe; delete state.pendingChallenge; }
+      if (stored.type === "UNSAFE_REFUSED") state.unsafeAttempts += 1;
+      if (stored.type === "SKEPTIC_CHALLENGED" && payload.challenge) state.pendingChallenge = payload.challenge;
+      if (stored.type === "SKEPTIC_RESOLVED") delete state.pendingChallenge;
+      if (stored.type === "DIAGNOSIS_LOCKED" && payload.diagnosis) state.diagnosis = payload.diagnosis;
+      if (stored.type === "EVALUATED" && payload.score) { state.score = payload.score; state.status = "evaluated"; }
+      if (stored.type === "AGENT_RUN" && payload.trace) state.traces.push(payload.trace);
+      if (stored.type === "TRUTH_REVEALED" && payload.truth) state.revealedTruth = payload.truth;
+      if (stored.type !== "AGENT_RUN") state.revision += 1;
     }
     return state;
   }
@@ -193,16 +237,18 @@ export class EpisodeService {
         if (triggers.length) {
           const challenge = { triggers, probeId };
           this.append(id, "SKEPTIC_CHALLENGED", { challenge });
-          this.trackAgent(id, "skeptic", () => this.recordSkeptic(id, state, probeId, triggers, predictions));
+          this.append(id, "AGENT_RUN", { trace: runSkeptic({ possibleHypotheses: state.beliefs as HypothesisId[], predictions, observations: state.observations, triggers }) });
         }
         return;
       }
       case "skeptic-decision":
         if (!state.pendingChallenge) throw new ConflictError("There is no pending Skeptic challenge.");
-        if (action.predictions && JSON.stringify(action.predictions) !== JSON.stringify(state.proposals[state.pendingChallenge.probeId])) {
+        if (action.predictions && stableJson(action.predictions) !== stableJson(state.proposals[state.pendingChallenge.probeId])) {
           const issues = validatePredictions(state.pendingChallenge.probeId, action.predictions);
           if (issues.length) throw new ConflictError(issues.join(" "));
-          this.append(id, "PROBE_REVISED", { proposal: { probeId: state.pendingChallenge.probeId, predictions: action.predictions } });
+          const predictions = action.predictions as PredictionSet;
+          this.append(id, "PROBE_REVISED", { proposal: { probeId: state.pendingChallenge.probeId, predictions } });
+          state.proposals[state.pendingChallenge.probeId] = predictions;
         }
         this.append(id, "SKEPTIC_RESOLVED", { decision: action.decision });
         return;
@@ -284,17 +330,6 @@ export class EpisodeService {
     if (state.revealedTruth) view.truthHypothesis = state.revealedTruth;
     if (state.status === "evaluated") view.forecastTable = PIN9_MODEL.forecasts;
     return view;
-  }
-
-  private async recordSkeptic(id: string, state: State, probeId: ProbeId, triggers: ReturnType<typeof detectSkepticTriggers>, predictions: PredictionSet): Promise<void> {
-    const validCount = state.beliefs.length;
-    let trace: AgentTrace;
-    try {
-      trace = await runSkeptic({ possibleHypotheses: state.beliefs as HypothesisId[], predictions, observations: state.observations, triggers });
-    } catch {
-      trace = { graph: "skeptic", status: "fallback", inputSummary: `${probeId}|${validCount}`, output: "What evidence would distinguish the causes that share this prediction?" };
-    }
-    this.append(id, "AGENT_RUN", { trace });
   }
 
   private async recordExaminer(id: string, diagnosis: State["diagnosis"], claimChecks: ReturnType<typeof gradeEpisode>["claimChecks"]): Promise<void> {

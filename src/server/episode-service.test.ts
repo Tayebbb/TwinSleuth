@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import Database from "better-sqlite3";
 import { EpisodeService } from "./episode-service.js";
+import { PIN9_MODEL } from "./case-model/pin9.js";
 
 function action(type: object, revision: number, actionId: string = randomUUID()) {
   return { actionId, expectedRevision: revision, action: type };
@@ -31,6 +33,76 @@ describe("event-backed episode service", () => {
     const duplicate = service.act(view.id, runAction);
     expect(duplicate.observations).toHaveLength(1);
     expect(() => service.act(view.id, { ...runAction, action: { type: "unsafe" } })).toThrow("different input");
+    service.close();
+  });
+
+  it("rejects a second run of the same probe even with a fresh action ID", () => {
+    const service = new EpisodeService();
+    const started = service.start("H1");
+    let view = service.act(started.id, action({
+      type: "propose", probeId: "P3",
+      predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
+    }, started.revision));
+    view = service.act(view.id, action({ type: "run", probeId: "P3" }, view.revision));
+    expect(() => service.act(view.id, action({ type: "run", probeId: "P3" }, view.revision, "fresh-duplicate-run"))).toThrow("only once");
+    service.close();
+  });
+
+  it("rejects a probe that would exceed the time budget", () => {
+    const service = new EpisodeService();
+    let view = service.start("H1");
+    const commitAndRun = (probeId: keyof typeof PIN9_MODEL.forecasts) => {
+      view = service.act(view.id, action({ type: "propose", probeId, predictions: PIN9_MODEL.forecasts[probeId] }, view.revision));
+      if (view.skeptic) view = service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, view.revision));
+      view = service.act(view.id, action({ type: "run", probeId }, view.revision));
+    };
+    for (const probeId of ["P1", "P3", "P4", "P5"] as const) commitAndRun(probeId);
+    view = service.act(view.id, action({ type: "propose", probeId: "P6", predictions: PIN9_MODEL.forecasts.P6 }, view.revision));
+    if (view.skeptic) view = service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, view.revision));
+    expect(() => service.act(view.id, action({ type: "run", probeId: "P6" }, view.revision))).toThrow("exceeds the maintenance-time budget");
+    service.close();
+  });
+
+  it("returns the original projection for an idempotent retry after later actions", () => {
+    const service = new EpisodeService();
+    const started = service.start("H1");
+    const firstRequest = action({ type: "unsafe" }, started.revision, "original-response");
+    const firstResponse = service.act(started.id, firstRequest);
+    service.act(started.id, action({ type: "beliefs", possibleHypotheses: ["H1", "H2"] }, firstResponse.revision));
+    expect(service.act(started.id, firstRequest)).toEqual(firstResponse);
+    service.close();
+  });
+
+  it("treats reordered object members as the same idempotent request", () => {
+    const service = new EpisodeService();
+    const started = service.start("H1");
+    const request = action({
+      type: "propose", probeId: "P3",
+      predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
+    }, started.revision, "canonical-request");
+    const first = service.act(started.id, request);
+    const reordered = { ...request, action: {
+      type: "propose" as const, probeId: "P3" as const,
+      predictions: { H4: "completed", H3: "refused", H2: "refused", H1: "completed" },
+    } };
+    expect(service.act(started.id, reordered)).toEqual(first);
+    service.close();
+  });
+
+  it("uses predictions submitted with a Skeptic revision for the run and score", () => {
+    const service = new EpisodeService();
+    const started = service.start("H1");
+    const proposed = service.act(started.id, action({
+      type: "propose", probeId: "P3",
+      predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" },
+    }, started.revision));
+    expect(proposed.skeptic).toBeDefined();
+    const revised = service.act(started.id, action({
+      type: "skeptic-decision", decision: "run-anyway",
+      predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
+    }, proposed.revision));
+    expect(revised.proposals.P3).toEqual({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" });
+    expect(revised.revisedPredictions.P3).toEqual(revised.proposals.P3);
     service.close();
   });
 
@@ -72,14 +144,15 @@ describe("event-backed episode service", () => {
     rmSync(`${filename}-wal`, { force: true });
   });
 
-  it("reports pending agent work so clients can stop polling when it finishes", () => {
+  it("records deterministic Skeptic feedback in the action response", () => {
     const service = new EpisodeService();
     const started = service.start("H1");
     const challenged = service.act(started.id, action({
       type: "propose", probeId: "P1",
       predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" },
     }, started.revision));
-    expect(challenged.pendingAgents).toContain("skeptic");
+    expect(challenged.pendingAgents).not.toContain("skeptic");
+    expect(challenged.skeptic?.question).toBeTruthy();
     service.close();
   });
 
@@ -113,7 +186,7 @@ describe("event-backed episode service", () => {
     expect(new Set(responses).size).toBe(1);
   });
 
-  it("does not let a client choose the observed outcome", () => {
+  it("rejects an attempt to supply an observed outcome", () => {
     const service = new EpisodeService();
     const view = service.start("H1");
     const proposed = service.act(view.id, action({
@@ -124,7 +197,8 @@ describe("event-backed episode service", () => {
     const resolved = proposed.skeptic
       ? service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, proposed.revision))
       : proposed;
-    const observed = service.act(view.id, action({ type: "run", probeId: "P3", outcomeId: "refused" }, resolved.revision));
+    expect(() => service.act(view.id, action({ type: "run", probeId: "P3", outcomeId: "refused" }, resolved.revision))).toThrow();
+    const observed = service.act(view.id, action({ type: "run", probeId: "P3" }, resolved.revision));
     expect(observed.observations[0]?.outcomeId).toBe("completed");
     service.close();
   });
@@ -186,6 +260,56 @@ describe("event-backed episode service", () => {
     expect(service.get(started.id)).toEqual(first);
     expect(service.act(started.id, request)).toEqual(first);
     expect(service.replay(started.id).map((event) => (event as { type: string }).type)).toEqual(["EPISODE_STARTED", "BELIEFS_UPDATED"]);
+    service.close();
+    rmSync(filename, { force: true });
+    rmSync(`${filename}-shm`, { force: true });
+    rmSync(`${filename}-wal`, { force: true });
+  });
+
+  it("fails safely when a persisted event payload is malformed JSON", () => {
+    const filename = join(tmpdir(), `twinsleuth-corrupt-${randomUUID()}.sqlite`);
+    let service = new EpisodeService(filename);
+    const started = service.start("H1");
+    service.close();
+    const database = new Database(filename);
+    database.prepare("UPDATE events SET payload_json = ? WHERE episode_id = ? AND seq = 0").run("{", started.id);
+    database.close();
+    service = new EpisodeService(filename);
+    expect(() => service.get(started.id)).toThrow("Episode data is corrupted.");
+    service.close();
+    rmSync(filename, { force: true });
+    rmSync(`${filename}-shm`, { force: true });
+    rmSync(`${filename}-wal`, { force: true });
+  });
+
+  it("fails safely when persisted event type is unknown", () => {
+    const filename = join(tmpdir(), `twinsleuth-unknown-event-${randomUUID()}.sqlite`);
+    let service = new EpisodeService(filename);
+    const started = service.start("H1");
+    service.close();
+    const database = new Database(filename);
+    database.prepare("UPDATE events SET type = ? WHERE episode_id = ? AND seq = 0").run("MYSTERY_EVENT", started.id);
+    database.close();
+    service = new EpisodeService(filename);
+    expect(() => service.get(started.id)).toThrow("Episode data is corrupted.");
+    service.close();
+    rmSync(filename, { force: true });
+    rmSync(`${filename}-shm`, { force: true });
+    rmSync(`${filename}-wal`, { force: true });
+  });
+
+  it("fails safely when a cached idempotency response is corrupted", () => {
+    const filename = join(tmpdir(), `twinsleuth-corrupt-action-${randomUUID()}.sqlite`);
+    let service = new EpisodeService(filename);
+    const started = service.start("H1");
+    const request = action({ type: "unsafe" }, started.revision, "corrupt-cached-response");
+    service.act(started.id, request);
+    service.close();
+    const database = new Database(filename);
+    database.prepare("UPDATE actions SET response_json = ? WHERE episode_id = ? AND action_id = ?").run("{}", started.id, request.actionId);
+    database.close();
+    service = new EpisodeService(filename);
+    expect(() => service.act(started.id, request)).toThrow("Episode data is corrupted.");
     service.close();
     rmSync(filename, { force: true });
     rmSync(`${filename}-shm`, { force: true });

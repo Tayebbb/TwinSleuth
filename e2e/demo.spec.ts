@@ -3,6 +3,10 @@ import { expect, test } from "@playwright/test";
 test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
   let episodeStarts = 0;
   const idlePolls: string[] = [];
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("requestfailed", (request) => failedRequests.push(`${request.method()} ${request.url()}`));
   page.on("request", (request) => {
     if (request.method() === "POST" && request.url().endsWith("/api/episodes")) episodeStarts += 1;
     if (request.method() === "GET" && /\/api\/episodes\//.test(request.url())) idlePolls.push(request.url());
@@ -23,7 +27,7 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
     await expect(page.getByLabel(`Prediction for ${hypothesis}`)).toBeDisabled();
   }
   await expect(page.getByRole("button", { name: /P3/ }).first()).toBeDisabled();
-  await expect(page.getByText(/Your prediction is saved/)).toBeVisible();
+  await expect(page.getByText("Your prediction is saved. Choose whether to switch tests or run this one.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Try P3 instead" }).click();
   await expect(page.getByLabel("Prediction for H1")).toBeEnabled();
   await expect(page.getByLabel("Prediction for H1")).toHaveValue("");
@@ -85,4 +89,6 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
   const settledPollCount = idlePolls.length;
   await page.waitForTimeout(1500);
   expect(idlePolls).toHaveLength(settledPollCount);
+  expect(consoleErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
 });
