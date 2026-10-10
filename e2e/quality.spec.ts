@@ -132,6 +132,20 @@ test("does not serve local SQLite files through the Vite development server", as
   }
 });
 
+test("does not serve private server code, the forecast model, secrets, or repo metadata through the Vite development server", async ({ request }) => {
+  const paths = [
+    "/src/server/case-model/pin9.ts", "/src/server/case-model/pin9.ts?raw", "/src/server/episode-service.ts",
+    "/src/engine/score.ts", "/@fs/" + process.cwd().replaceAll("\\", "/") + "/src/server/case-model/pin9.ts",
+    "/.env", "/.env.example", "/.git/config", "/package.json", "/audit/FINDINGS.md", "/handoff.md",
+  ];
+  for (const path of paths) {
+    const response = await request.get(path);
+    const body = await response.text();
+    expect(response.status(), `${path} must be denied`).toBeGreaterThanOrEqual(400);
+    expect(body, `${path} must not leak forecast data`).not.toContain("forecasts");
+  }
+});
+
 test("passes automated accessibility, overflow, and target-size checks across required viewports", async ({ page }) => {
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];

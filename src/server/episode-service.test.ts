@@ -220,6 +220,23 @@ describe("event-backed episode service", () => {
     expect(new Set(publicViews).size).toBe(1);
   });
 
+  it("keeps evidence-consistent cause IDs out of Skeptic text and replay after observations", () => {
+    for (const truth of ["H1", "H4"] as const) {
+      const service = new EpisodeService();
+      let view = service.start(truth);
+      view = service.act(view.id, action({ type: "propose", probeId: "P3", predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" } }, view.revision));
+      if (view.skeptic) view = service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, view.revision));
+      view = service.act(view.id, action({ type: "run", probeId: "P3" }, view.revision));
+      view = service.act(view.id, action({ type: "beliefs", possibleHypotheses: ["H2", "H3"] }, view.revision));
+      view = service.act(view.id, action({ type: "propose", probeId: "P4", predictions: { H1: "stopped-at-95", H2: "full-range", H3: "full-range", H4: "full-range" } }, view.revision));
+      expect(view.skeptic?.triggers.some((trigger) => trigger.kind === "premature-elimination")).toBe(true);
+      expect(view.skeptic?.question).not.toMatch(/H1|H4/);
+      expect(JSON.stringify(view.traces)).not.toMatch(/H1|H4/);
+      expect(JSON.stringify(service.replay(view.id))).not.toMatch(/"AGENT_RUN"[^}]*H[14]/);
+      service.close();
+    }
+  });
+
   it("hides derived candidate sets before lock but reveals authored rows after each run", () => {
     const service = new EpisodeService();
     let view = service.start("H1");
