@@ -3,7 +3,8 @@ import type { SkepticAgentInput, AgentTrace, StructuredModelClient } from "./typ
 function templateQuestion(input: SkepticAgentInput): string {
   const trigger = input.triggers[0];
   if (trigger?.kind === "premature-elimination") {
-    const ids = trigger.hypothesisIds.join(" and ") || "a cause";
+    if (trigger.hypothesisIds.length === 0) return "Your revealed evidence still supports a cause that your current set removes. What observed result justifies ruling it out?";
+    const ids = trigger.hypothesisIds.join(" and ");
     return `Your revealed evidence still supports ${ids}, but your current set removes ${ids}. What observed result justifies ruling it out?`;
   }
   const ids = trigger?.hypothesisIds.join(" and ") ?? "these causes";
