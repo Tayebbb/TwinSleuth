@@ -12,7 +12,7 @@ npm ci, validate:case, typecheck, test (57), build, test:e2e (12), capture:demo:
 2 Engine sole authority: PASS (score/diagnosis/budget server-side; Examiner output only text).
 3 Skeptic isolation: PASS after fix; Skeptic is template-only, ignores model client.
 4 No-LLM demo path: PASS (e2e demo, no console errors).
-5 Ledger = truth: PASS (state is a fold of events each read). Nit: `episodes.revision` column inconsistent, unused.
+5 Ledger = truth: PASS (state is a fold of events each read). `episodes.revision` column now fixed (regression test).
 
 ## Not production ready
 Own README says single-process local MVP. Blockers: no prod server (API doesn't serve `dist`; no start script); no authn/tenant scoping (episode UUID is sole capability); in-memory per-IP limiter; SQLite single writer, no migrations/backup; `request.ip` not proxy-aware; CORS/origin fixed to Vite; no CI config or health/metrics/logging (logger disabled).
@@ -24,4 +24,4 @@ Verdict: **Hackathon/local demo: GO. Production: NO-GO.**
 3. Case-pack loader: `CaseDefinition` (hypotheses, probes, forecasts, copy) so PIN-9 is one of N; validate with `validate:case`.
 4. Auth + per-user episode ownership; persistent rate limiter; structured logs without payloads.
 5. Pluggable provider interface (Gemini is hardcoded) with stub for tests.
-6. Drop or fix `episodes.revision`; add replay-equals-live property test over random action sequences.
+6. Add replay-equals-live property test over random action sequences.

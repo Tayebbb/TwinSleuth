@@ -237,6 +237,16 @@ describe("event-backed episode service", () => {
     }
   });
 
+  it("keeps the stored episode revision equal to the folded ledger revision", () => {
+    const service = new EpisodeService();
+    let view = service.start("H1");
+    view = service.act(view.id, action({ type: "propose", probeId: "P3", predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" } }, view.revision));
+    expect(view.traces.length).toBeGreaterThan(0);
+    const row = (service as unknown as { db: { prepare(sql: string): { get(id: string): { revision: number } } } }).db.prepare("SELECT revision FROM episodes WHERE id = ?").get(view.id);
+    expect(row.revision).toBe(view.revision);
+    service.close();
+  });
+
   it("hides derived candidate sets before lock but reveals authored rows after each run", () => {
     const service = new EpisodeService();
     let view = service.start("H1");

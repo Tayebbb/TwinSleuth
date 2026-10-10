@@ -296,7 +296,7 @@ export class EpisodeService {
       const row = this.db.prepare("SELECT COALESCE(MAX(seq), -1) AS seq FROM events WHERE episode_id = ?").get(id) as { seq: number };
       const seq = row.seq + 1;
       this.db.prepare("INSERT INTO events VALUES (?, ?, ?, ?, ?)").run(id, seq, type, JSON.stringify(payload), new Date().toISOString());
-      if (type !== "AGENT_RUN") this.db.prepare("UPDATE episodes SET revision = ?, status = CASE WHEN ? = 'EVALUATED' THEN 'evaluated' ELSE status END WHERE id = ?").run(seq, type, id);
+      if (type !== "AGENT_RUN") this.db.prepare("UPDATE episodes SET revision = (SELECT COUNT(*) FROM events WHERE episode_id = ? AND type != 'AGENT_RUN'), status = CASE WHEN ? = 'EVALUATED' THEN 'evaluated' ELSE status END WHERE id = ?").run(id, type, id);
     };
     if (this.db.inTransaction) write();
     else this.db.transaction(write).immediate();
