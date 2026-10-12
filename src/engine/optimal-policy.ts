@@ -1,21 +1,20 @@
-import type { HypothesisId, OutcomeId, ProbeId } from "../case/catalog.js";
 import { partitionByOutcome, separates } from "./diagnostics.js";
 import type { DiagnosticModel } from "./model.js";
 
 export type PolicyNode =
-  | { readonly kind: "diagnose"; readonly hypothesisId: HypothesisId }
+  | { readonly kind: "diagnose"; readonly hypothesisId: string }
   | {
       readonly kind: "test";
-      readonly probeId: ProbeId;
+      readonly probeId: string;
       readonly costMinutes: number;
-      readonly branches: Readonly<Partial<Record<OutcomeId, PolicyNode>>>;
+      readonly branches: Readonly<Partial<Record<string, PolicyNode>>>;
     };
 
 export interface OptimalPolicy {
   readonly root: PolicyNode;
   readonly expectedCostMinutes: number;
   readonly worstCaseCostMinutes: number;
-  readonly prior: Readonly<Record<HypothesisId, number>>;
+  readonly prior: Readonly<Record<string, number>>;
 }
 
 interface Plan {
@@ -24,17 +23,17 @@ interface Plan {
   readonly worstCost: number;
 }
 
-function probabilityMass(model: DiagnosticModel, ids: readonly HypothesisId[]): number {
-  return ids.reduce((total, id) => total + model.prior[id], 0);
+function probabilityMass(model: DiagnosticModel, ids: readonly string[]): number {
+  return ids.reduce((total, id) => total + model.prior[id]!, 0);
 }
 
 export function optimalPolicy(model: DiagnosticModel, budgetMinutes = model.budgetMinutes): OptimalPolicy {
   const memo = new Map<string, Plan | null>();
 
   function solve(
-    ids: readonly HypothesisId[],
+    ids: readonly string[],
     remainingBudget: number,
-    used: readonly ProbeId[],
+    used: readonly string[],
   ): Plan | null {
     if (ids.length === 1) {
       return { node: { kind: "diagnose", hypothesisId: ids[0]! }, expectedCost: 0, worstCost: 0 };
@@ -53,7 +52,7 @@ export function optimalPolicy(model: DiagnosticModel, budgetMinutes = model.budg
       const mass = probabilityMass(model, ids);
       let expectedCost = probe.costMinutes;
       let worstCost = probe.costMinutes;
-      const branches: Partial<Record<OutcomeId, PolicyNode>> = {};
+      const branches: Partial<Record<string, PolicyNode>> = {};
       let feasible = true;
 
       for (const [outcomeId, group] of groups) {
@@ -101,13 +100,13 @@ export function optimalPolicy(model: DiagnosticModel, budgetMinutes = model.budg
 export function policyCostForTruth(
   model: DiagnosticModel,
   policy: OptimalPolicy,
-  truth: HypothesisId,
+  truth: string,
 ): number {
   let node = policy.root;
   let total = 0;
   while (node.kind === "test") {
     total += node.costMinutes;
-    const outcome = model.forecasts[node.probeId][truth];
+    const outcome = model.forecasts[node.probeId]![truth]!;
     const next = node.branches[outcome];
     if (!next) throw new Error(`Policy has no ${outcome} branch for ${node.probeId}.`);
     node = next;

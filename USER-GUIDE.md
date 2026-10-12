@@ -1,6 +1,6 @@
 # TwinSleuth User Guide
 
-TwinSleuth is a browser-based practice simulator for the **PIN-9 Refusal** case. You investigate why a simulated robot arm rejected a keypad move by tracking possible causes, predicting test results, running probes, and defending a diagnosis with evidence.
+TwinSleuth is a browser-based practice simulator with **PIN-9 Refusal** and **Conveyor Index Drift** cases. You track possible causes, predict test results, run probes, and defend a diagnosis with evidence.
 
 This is a learning simulation. It does not connect to or operate physical equipment, and its synthetic results are not industrial safety advice.
 
@@ -127,8 +127,8 @@ After P3, the demo tests the remaining H1/H4 ambiguity with P4. It predicts **St
 
 - **The page does not load:** keep `npm run dev` running and open `http://127.0.0.1:5173`. The API must also be available locally on port 5174.
 - **Agent feedback is a template:** this is expected without an enabled local model proxy or when a model response is unavailable or invalid. The practice flow and deterministic score still work without a model credential.
-- **You need a new attempt:** use **Start a fresh episode** after the debrief. Episode records are stored in the local SQLite database file and are not automatically deleted.
-- **Scope:** the current product contains one synthetic PIN-9 case. It is a local hackathon MVP, not a hosted classroom or multi-user service. It has not been evaluated for learning outcomes and must not be used to control or diagnose real industrial equipment.
+- **You need a new attempt:** choose a case under the local practice controls and use **Start selected case**. The local history panel can export learner-visible JSON or delete a stored episode. Deletion removes its rows from this SQLite database, not copies you exported or separate backups.
+- **Scope:** both cases are synthetic. This is a local hackathon MVP, not a hosted classroom or multi-user service. It has not been evaluated for learning outcomes and must not be used to control or diagnose real industrial equipment.
 
 ## Optional project checks and demo capture
 

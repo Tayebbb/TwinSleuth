@@ -1,12 +1,13 @@
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
-import { CASE_ID, COLLEAGUE_NOTE, DIAGNOSTIC_BUDGET_MINUTES, HYPOTHESES, INITIAL_SYMPTOM, MAINTENANCE_LOG, PROBES, UNSAFE_ACTION } from "../case/catalog.js";
-import type { HypothesisId, ProbeId, OutcomeId } from "../case/catalog.js";
-import { consistentHypotheses, detectSkepticTriggers, validatePredictions } from "../engine/diagnostics.js";
+import type { PublicCase } from "../case/catalog.js";
+import { consistentHypotheses, detectSkepticTriggers, validatePredictions, separates } from "../engine/diagnostics.js";
 import { gradeEpisode } from "../engine/score.js";
-import type { ArgumentClaim, Observation, PredictionSet } from "../engine/model.js";
-import { PIN9_MODEL } from "./case-model/pin9.js";
+import { optimalPolicy } from "../engine/optimal-policy.js";
+import type { ArgumentClaim, Observation, PredictionSet, DiagnosticModel } from "../engine/model.js";
+import { CASES, getCase } from "./case-model/registry.js";
+import type { CaseDefinition } from "./case-model/registry.js";
 import { runExaminer } from "./agents/examiner.js";
 import { runSkeptic } from "./agents/skeptic.js";
 import type { AgentTrace } from "./agents/types.js";
@@ -62,14 +63,14 @@ interface State {
   revisions: Record<string, PredictionSet>;
   observations: Observation[];
   unsafeAttempts: number;
-  pendingProbe?: ProbeId;
-  pendingChallenge?: { triggers: ReturnType<typeof detectSkepticTriggers>; probeId: ProbeId };
-  diagnosis?: { diagnosis: HypothesisId; confidence: number; justification: string; claims: ArgumentClaim[] };
+  pendingProbe?: string;
+  pendingChallenge?: { triggers: ReturnType<typeof detectSkepticTriggers>; probeId: string };
+  diagnosis?: { diagnosis: string; confidence: number; justification: string; claims: ArgumentClaim[] };
   score?: ReturnType<typeof gradeEpisode>;
-  revealedTruth?: HypothesisId;
+  revealedTruth?: string;
   traces: AgentTrace[];
   status: "active" | "evaluated";
-  beliefTimeline: { revision: number; beliefs: HypothesisId[] }[];
+  beliefTimeline: { revision: number; beliefs: string[] }[];
 }
 
 export interface PublicView {
@@ -84,29 +85,30 @@ export interface PublicView {
   observations: Observation[];
   remainingMinutes: number;
   budgetMinutes: number;
-  pendingProbe?: ProbeId;
-  skeptic?: { triggers: ReturnType<typeof detectSkepticTriggers>; question: string; probeId: ProbeId };
+  pendingProbe?: string;
+  skeptic?: { triggers: ReturnType<typeof detectSkepticTriggers>; question: string; probeId: string };
   diagnosis?: State["diagnosis"];
   score?: ReturnType<typeof gradeEpisode>;
-  truthHypothesis?: HypothesisId;
-  beliefTimeline: readonly { revision: number; beliefs: readonly HypothesisId[] }[];
-  evidenceTimeline: readonly { evidenceId: string; supported: readonly HypothesisId[] }[];
-  revealedForecasts: Partial<typeof PIN9_MODEL.forecasts>;
-  forecastTable?: typeof PIN9_MODEL.forecasts;
+  truthHypothesis?: string;
+  beliefTimeline: readonly { revision: number; beliefs: readonly string[] }[];
+  evidenceTimeline: readonly { evidenceId: string; supported: readonly string[] }[];
+  revealedForecasts: Record<string, Record<string, string>>;
+  forecastTable?: Record<string, Record<string, string>>;
   traces: AgentTrace[];
   pendingAgents: AgentTrace["graph"][];
+  debrief?: { probeLessons: readonly { probeId: string; informative: boolean; remaining: readonly string[]; lesson: string }[]; betterNextProbe?: string; pathLesson: string };
   public: {
-    hypotheses: typeof HYPOTHESES;
-    probes: typeof PROBES;
-    symptom: typeof INITIAL_SYMPTOM;
-    maintenanceLog: typeof MAINTENANCE_LOG;
+    hypotheses: PublicCase["hypotheses"];
+    probes: PublicCase["probes"];
+    symptom: PublicCase["symptom"];
+    maintenanceLog: PublicCase["maintenanceLog"];
     colleagueNote: string;
-    unsafeAction: typeof UNSAFE_ACTION;
+    unsafeAction: PublicCase["unsafeAction"];
   };
 }
 
-function initialState(): State {
-  return { revision: 0, beliefs: HYPOTHESES.map(({ id }) => id), beliefTimeline: [], proposals: {}, revisions: {}, observations: [], unsafeAttempts: 0, traces: [], status: "active" };
+function initialState(model: DiagnosticModel): State {
+  return { revision: 0, beliefs: model.hypotheses.map(({ id }) => id), beliefTimeline: [], proposals: {}, revisions: {}, observations: [], unsafeAttempts: 0, traces: [], status: "active" };
 }
 
 export class EpisodeService {
@@ -127,12 +129,43 @@ export class EpisodeService {
 
   close(): void { this.db.close(); }
 
-  start(truth?: "H1" | "H2" | "H3" | "H4"): PublicView {
+  list(): readonly { id: string; caseId: string; title: string; status: State["status"]; revision: number; createdAt: string }[] {
+    return (this.db.prepare("SELECT id, case_id, status, revision, created_at FROM episodes ORDER BY created_at DESC").all() as { id: string; case_id: string; status: State["status"]; revision: number; created_at: string }[])
+      .flatMap((row) => {
+        const definition = getCase(row.case_id);
+        return definition ? [{ id: row.id, caseId: row.case_id, title: definition.public.title, status: row.status, revision: row.revision, createdAt: row.created_at }] : [];
+      });
+  }
+
+  export(id: string): { format: "twinsleuth-local-episode-v1"; episode: PublicView; events: unknown[] } {
+    return { format: "twinsleuth-local-episode-v1", episode: this.get(id), events: this.replay(id) };
+  }
+
+  delete(id: string): void {
+    const tx = this.db.transaction(() => {
+      const found = this.db.prepare("SELECT 1 FROM episodes WHERE id = ?").get(id);
+      if (!found) throw new NotFoundError("Episode not found.");
+      this.db.prepare("DELETE FROM actions WHERE episode_id = ?").run(id);
+      this.db.prepare("DELETE FROM events WHERE episode_id = ?").run(id);
+      this.db.prepare("DELETE FROM episode_secrets WHERE episode_id = ?").run(id);
+      this.db.prepare("DELETE FROM episodes WHERE id = ?").run(id);
+    });
+    tx.immediate();
+  }
+
+  start(caseIdOrTruth = CASES[0]!.public.id, truth?: string): PublicView {
+    // Preserve the original test/demo convenience: start("H1") selects PIN-9 truth.
+    const legacyTruth = !getCase(caseIdOrTruth) && CASES[0]!.model.hypotheses.some(({ id }) => id === caseIdOrTruth);
+    const caseId = legacyTruth ? CASES[0]!.public.id : caseIdOrTruth;
+    truth = truth ?? (legacyTruth ? caseIdOrTruth : undefined);
+    const definition = getCase(caseId);
+    if (!definition) throw new ConflictError("Unknown practice case.");
     const id = randomUUID();
-    const selected = truth ?? HYPOTHESES[Math.floor(Math.random() * HYPOTHESES.length)]!.id;
+    if (truth && !definition.model.hypotheses.some(({ id }) => id === truth)) throw new ConflictError("Invalid demo truth.");
+    const selected = truth ?? definition.model.hypotheses[Math.floor(Math.random() * definition.model.hypotheses.length)]!.id;
     const now = new Date().toISOString();
     const tx = this.db.transaction(() => {
-      this.db.prepare("INSERT INTO episodes VALUES (?, ?, ?, ?, ?)").run(id, CASE_ID, "active", 0, now);
+      this.db.prepare("INSERT INTO episodes VALUES (?, ?, ?, ?, ?)").run(id, definition.public.id, "active", 0, now);
       this.db.prepare("INSERT INTO episode_secrets VALUES (?, ?)").run(id, selected);
       this.append(id, "EPISODE_STARTED", {});
     });
@@ -141,16 +174,21 @@ export class EpisodeService {
   }
 
   get(id: string): PublicView {
-    const episode = this.db.prepare("SELECT id, status, revision FROM episodes WHERE id = ?").get(id) as { id: string; status: State["status"]; revision: number } | undefined;
+    const episode = this.db.prepare("SELECT id, case_id, status, revision FROM episodes WHERE id = ?").get(id) as { id: string; case_id: string; status: State["status"]; revision: number } | undefined;
     if (!episode) throw new NotFoundError("Episode not found.");
-    const state = this.fold(id);
-    return this.publicView(id, state);
+    const definition = getCase(episode.case_id);
+    if (!definition) throw new Error("Episode data is corrupted.");
+    const state = this.fold(id, definition.model);
+    return this.publicView(id, state, definition);
   }
 
   replay(id: string): unknown[] {
     const exists = this.db.prepare("SELECT 1 FROM episodes WHERE id = ?").get(id);
     if (!exists) throw new NotFoundError("Episode not found.");
-    const state = this.fold(id);
+    const episode = this.db.prepare("SELECT case_id FROM episodes WHERE id = ?").get(id) as { case_id: string };
+    const definition = getCase(episode.case_id);
+    if (!definition) throw new Error("Episode data is corrupted.");
+    const state = this.fold(id, definition.model);
     return this.db.prepare("SELECT seq, type, payload_json AS payload FROM events WHERE episode_id = ? ORDER BY seq").all(id).map((row) => {
       const event = row as { seq: number; type: string; payload: string };
       const stored = parseStoredEvent(event.type, event.payload);
@@ -184,23 +222,26 @@ export class EpisodeService {
       if (parsed.expectedRevision !== current.revision) throw new ConflictError("Episode revision is stale.");
       const count = this.db.prepare("SELECT COUNT(*) AS count FROM actions WHERE episode_id = ?").get(id) as { count: number };
       if (count.count >= EpisodeService.MAX_ACTIONS_PER_EPISODE) throw new ConflictError("Episode action limit reached.");
-      const state = this.fold(id);
-      this.apply(id, state, parsed.action);
-      const response = this.publicView(id, this.fold(id));
+      const row = this.db.prepare("SELECT case_id FROM episodes WHERE id = ?").get(id) as { case_id: string } | undefined;
+      const definition = row && getCase(row.case_id);
+      if (!definition) throw new Error("Episode data is corrupted.");
+      const state = this.fold(id, definition.model);
+      this.apply(id, state, parsed.action, definition);
+      const response = this.publicView(id, this.fold(id, definition.model), definition);
       this.db.prepare("INSERT INTO actions VALUES (?, ?, ?, ?, ?)").run(id, parsed.actionId, actionHash, "complete", JSON.stringify(response));
       return response;
     });
     return tx.immediate();
   }
 
-  private fold(id: string): State {
-    const state = initialState();
+  private fold(id: string, model: DiagnosticModel): State {
+    const state = initialState(model);
     const rows = this.db.prepare("SELECT type, payload_json FROM events WHERE episode_id = ? ORDER BY seq").all(id) as { type: string; payload_json: string }[];
     for (const row of rows) {
       const stored = parseStoredEvent(row.type, row.payload_json);
-      const payload = stored.payload as Partial<State> & { trace?: AgentTrace; proposal?: { probeId: string; predictions: PredictionSet }; revision?: PredictionSet; observation?: Observation; challenge?: State["pendingChallenge"]; diagnosis?: State["diagnosis"]; score?: State["score"]; truth?: HypothesisId };
+      const payload = stored.payload as Partial<State> & { trace?: AgentTrace; proposal?: { probeId: string; predictions: PredictionSet }; revision?: PredictionSet; observation?: Observation; challenge?: State["pendingChallenge"]; diagnosis?: State["diagnosis"]; score?: State["score"]; truth?: string };
       if (stored.type === "BELIEFS_UPDATED" && payload.beliefs) {
-        const beliefs = payload.beliefs as HypothesisId[];
+        const beliefs = payload.beliefs as string[];
         state.beliefs = beliefs;
         state.beliefTimeline.push({ revision: state.revision + 1, beliefs: [...beliefs] });
       }
@@ -222,35 +263,38 @@ export class EpisodeService {
     return state;
   }
 
-  private apply(id: string, state: State, action: Action): void {
+  private apply(id: string, state: State, action: Action, definition: CaseDefinition): void {
+    const { model, public: publicCase } = definition;
     if (state.status === "evaluated") throw new ConflictError("Episode is already evaluated.");
     switch (action.type) {
       case "beliefs":
+        if (action.possibleHypotheses.some((id) => !model.hypotheses.some((hypothesis) => hypothesis.id === id))) throw new ConflictError("Unknown cause.");
         this.append(id, "BELIEFS_UPDATED", { beliefs: [...new Set(action.possibleHypotheses)] });
         return;
       case "propose": {
         if (state.pendingChallenge) throw new ConflictError("Resolve the pending Skeptic challenge first.");
-        const probeId = action.probeId as ProbeId;
+        const probeId = action.probeId;
+        if (!model.probes.some((probe) => probe.id === probeId)) throw new ValidationError("Unknown probe.");
         const predictions = action.predictions as PredictionSet;
         if (state.proposals[probeId]) throw new ConflictError(`Probe ${probeId} was already proposed.`);
         if (state.observations.some((observation) => observation.probeId === probeId)) throw new ConflictError(`Probe ${probeId} already ran.`);
-        const issues = validatePredictions(probeId, predictions);
-        if (issues.length) throw new ConflictError(issues.join(" "));
+        const issues = validatePredictions(model, probeId, predictions);
+        if (issues.length) throw new ValidationError(issues.join(" "));
         this.append(id, "PROBE_PROPOSED", { proposal: { probeId, predictions } });
-        const evidenceSupported = consistentHypotheses(PIN9_MODEL, state.observations);
-        const triggers = detectSkepticTriggers({ possibleHypotheses: state.beliefs as HypothesisId[], evidenceSupportedHypotheses: evidenceSupported, predictions });
+        const evidenceSupported = consistentHypotheses(model, state.observations);
+        const triggers = detectSkepticTriggers({ hypothesisIds: model.hypotheses.map(({ id }) => id), possibleHypotheses: state.beliefs, evidenceSupportedHypotheses: evidenceSupported, predictions });
         if (triggers.length) {
           const challenge = { triggers, probeId };
           this.append(id, "SKEPTIC_CHALLENGED", { challenge });
-          this.append(id, "AGENT_RUN", { trace: runSkeptic({ possibleHypotheses: state.beliefs as HypothesisId[], predictions, observations: state.observations, triggers: triggers.map(redactTrigger) }) });
+          this.append(id, "AGENT_RUN", { trace: runSkeptic({ possibleHypotheses: state.beliefs, predictions, observations: state.observations, triggers: triggers.map(redactTrigger) }) });
         }
         return;
       }
       case "skeptic-decision":
         if (!state.pendingChallenge) throw new ConflictError("There is no pending Skeptic challenge.");
         if (action.predictions && stableJson(action.predictions) !== stableJson(state.proposals[state.pendingChallenge.probeId])) {
-          const issues = validatePredictions(state.pendingChallenge.probeId, action.predictions);
-          if (issues.length) throw new ConflictError(issues.join(" "));
+          const issues = validatePredictions(model, state.pendingChallenge.probeId, action.predictions);
+          if (issues.length) throw new ValidationError(issues.join(" "));
           const predictions = action.predictions as PredictionSet;
           this.append(id, "PROBE_REVISED", { proposal: { probeId: state.pendingChallenge.probeId, predictions } });
           state.proposals[state.pendingChallenge.probeId] = predictions;
@@ -258,31 +302,35 @@ export class EpisodeService {
         this.append(id, "SKEPTIC_RESOLVED", { decision: action.decision });
         return;
       case "run": {
+        if (!model.probes.some((probe) => probe.id === action.probeId)) throw new ValidationError("Unknown probe.");
         if (state.pendingChallenge) throw new ConflictError("Answer the Skeptic before running this probe.");
         if (!state.proposals[action.probeId]) throw new ConflictError("Commit predictions before running a probe.");
         if (state.observations.some((observation) => observation.probeId === action.probeId)) throw new ConflictError("A probe can run only once.");
-        const spent = state.observations.reduce((sum, observation) => sum + PROBES.find((probe) => probe.id === observation.probeId)!.costMinutes, 0);
-        const cost = PROBES.find((probe) => probe.id === action.probeId)!.costMinutes;
-        if (spent + cost > DIAGNOSTIC_BUDGET_MINUTES) throw new ConflictError("This probe exceeds the maintenance-time budget.");
-        const secret = this.db.prepare("SELECT truth_hypothesis_id FROM episode_secrets WHERE episode_id = ?").get(id) as { truth_hypothesis_id: "H1" | "H2" | "H3" | "H4" };
-        const outcomeId = PIN9_MODEL.forecasts[action.probeId][secret.truth_hypothesis_id];
+        const selectedProbe = model.probes.find((probe) => probe.id === action.probeId);
+        if (!selectedProbe) throw new ValidationError("Unknown probe.");
+        const spent = state.observations.reduce((sum, observation) => sum + (model.probes.find((probe) => probe.id === observation.probeId)?.costMinutes ?? 0), 0);
+        if (spent + selectedProbe.costMinutes > model.budgetMinutes) throw new ConflictError("This probe exceeds the maintenance-time budget.");
+        const secret = this.db.prepare("SELECT truth_hypothesis_id FROM episode_secrets WHERE episode_id = ?").get(id) as { truth_hypothesis_id: string };
+        const outcomeId = model.forecasts[action.probeId]?.[secret.truth_hypothesis_id];
+        if (!outcomeId) throw new Error("Episode data is corrupted.");
         const observation = { evidenceId: randomUUID(), probeId: action.probeId, outcomeId };
         this.append(id, "PROBE_OBSERVED", { observation });
         this.append(id, "FORECAST_REVEALED", { probeId: action.probeId });
         return;
       }
       case "unsafe":
-        this.append(id, "UNSAFE_REFUSED", { actionId: UNSAFE_ACTION.id });
+        this.append(id, "UNSAFE_REFUSED", { actionId: publicCase.unsafeAction.id });
         return;
       case "lock": {
-        if (action.claims.length !== HYPOTHESES.length || new Set(action.claims.map((claim) => claim.hypothesisId)).size !== HYPOTHESES.length) {
+        if (action.claims.length !== model.hypotheses.length || new Set(action.claims.map((claim) => claim.hypothesisId)).size !== model.hypotheses.length || action.claims.some((claim) => !model.hypotheses.some(({ id }) => id === claim.hypothesisId))) {
           throw new ConflictError("Submit exactly one structured claim for each cause.");
         }
-        const diagnosis = { diagnosis: action.diagnosis as HypothesisId, confidence: action.confidence, justification: action.justification, claims: action.claims as ArgumentClaim[] };
+        if (!model.hypotheses.some(({ id }) => id === action.diagnosis)) throw new ConflictError("Unknown diagnosis.");
+        const diagnosis = { diagnosis: action.diagnosis, confidence: action.confidence, justification: action.justification, claims: action.claims as ArgumentClaim[] };
         this.append(id, "DIAGNOSIS_LOCKED", { diagnosis });
         const secret = this.db.prepare("SELECT truth_hypothesis_id FROM episode_secrets WHERE episode_id = ?").get(id) as { truth_hypothesis_id: "H1" | "H2" | "H3" | "H4" };
-        const next = this.fold(id);
-        const score = gradeEpisode(PIN9_MODEL, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.proposals).map(([probeId, predictions]) => ({ probeId: probeId as ProbeId, predictions: predictions as PredictionSet })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
+        const next = this.fold(id, model);
+        const score = gradeEpisode(model, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.proposals).map(([probeId, predictions]) => ({ probeId, predictions })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
         this.append(id, "EVALUATED", { score });
         this.trackAgent(id, "examiner", () => this.recordExaminer(id, diagnosis, score.claimChecks));
         this.append(id, "TRUTH_REVEALED", { truth: secret.truth_hypothesis_id });
@@ -302,27 +350,28 @@ export class EpisodeService {
     else this.db.transaction(write).immediate();
   }
 
-  private publicView(id: string, state: State): PublicView {
+  private publicView(id: string, state: State, definition: CaseDefinition): PublicView {
+    const { model, public: publicCase } = definition;
     const skeptic = state.pendingChallenge ? {
       triggers: state.pendingChallenge.triggers.map(redactTrigger),
       question: [...state.traces].reverse().find((trace) => trace.graph === "skeptic")?.output ?? "What would this test eliminate?",
       probeId: state.pendingChallenge.probeId,
     } : undefined;
     const view: PublicView = {
-      id, caseId: CASE_ID, title: "PIN-9 Refusal", revision: state.revision, status: state.status,
+      id, caseId: publicCase.id, title: publicCase.title, revision: state.revision, status: state.status,
       beliefs: state.beliefs, proposals: state.proposals, revisedPredictions: state.revisions, observations: state.observations,
-      remainingMinutes: DIAGNOSTIC_BUDGET_MINUTES - state.observations.reduce((sum, observation) => sum + PROBES.find((probe) => probe.id === observation.probeId)!.costMinutes, 0),
-      budgetMinutes: DIAGNOSTIC_BUDGET_MINUTES, traces: state.traces,
+      remainingMinutes: model.budgetMinutes - state.observations.reduce((sum, observation) => sum + (model.probes.find((probe) => probe.id === observation.probeId)?.costMinutes ?? 0), 0),
+      budgetMinutes: model.budgetMinutes, traces: state.traces,
       pendingAgents: [...(this.pendingAgents.get(id) ?? [])],
-      public: { hypotheses: HYPOTHESES, probes: PROBES, symptom: INITIAL_SYMPTOM, maintenanceLog: MAINTENANCE_LOG, colleagueNote: COLLEAGUE_NOTE, unsafeAction: UNSAFE_ACTION },
+      public: publicCase,
       beliefTimeline: state.beliefTimeline,
       evidenceTimeline: state.observations.map((_, index) => ({
         evidenceId: state.observations[index]!.evidenceId,
         supported: state.status === "evaluated"
-          ? consistentHypotheses(PIN9_MODEL, state.observations.slice(0, index + 1))
+          ? consistentHypotheses(model, state.observations.slice(0, index + 1))
           : [],
       })),
-      revealedForecasts: Object.fromEntries(state.observations.map((observation) => [observation.probeId, PIN9_MODEL.forecasts[observation.probeId]])),
+      revealedForecasts: Object.fromEntries(state.observations.map((observation) => [observation.probeId, model.forecasts[observation.probeId]!])),
     };
     if (state.pendingChallenge) {
       view.pendingProbe = state.pendingChallenge.probeId;
@@ -331,7 +380,24 @@ export class EpisodeService {
     if (state.diagnosis) view.diagnosis = state.diagnosis;
     if (state.score) view.score = state.score;
     if (state.revealedTruth) view.truthHypothesis = state.revealedTruth;
-    if (state.status === "evaluated") view.forecastTable = PIN9_MODEL.forecasts;
+    if (state.status === "evaluated") {
+      view.forecastTable = model.forecasts;
+      const policy = optimalPolicy(model);
+      const lessons = state.observations.map((observation, index) => {
+        const before = consistentHypotheses(model, state.observations.slice(0, index));
+        const remaining = consistentHypotheses(model, state.observations.slice(0, index + 1));
+        const informative = separates(model, observation.probeId, before);
+        return { probeId: observation.probeId, informative, remaining, lesson: informative ? `This result separated the causes plausible before the test; ${remaining.length} remain model-consistent.` : "This result did not separate the causes plausible before the test." };
+      });
+      const best = policy.root.kind === "test" ? policy.root.probeId : undefined;
+      view.debrief = {
+        probeLessons: lessons,
+        pathLesson: state.score && state.score.actualCostMinutes > state.score.bestPolicyBranchCostMinutes
+          ? "A shorter feasible policy branch existed for this simulated fault; compare the separating power of a probe before spending more time."
+          : "Your completed path matched the best feasible branch cost for this simulated fault, or no extra probe time was spent.",
+      };
+      if (best && state.observations[0]?.probeId !== best) view.debrief.betterNextProbe = best;
+    }
     return view;
   }
 
@@ -366,6 +432,10 @@ export class EpisodeService {
 
 export class ConflictError extends Error {
   readonly statusCode = 409;
+}
+
+export class ValidationError extends Error {
+  readonly statusCode = 400;
 }
 
 export class NotFoundError extends Error {

@@ -1,5 +1,3 @@
-import { HYPOTHESES } from "../case/catalog.js";
-import type { HypothesisId } from "../case/catalog.js";
 import { consistentHypotheses, separates, validatePredictions } from "./diagnostics.js";
 import type { ArgumentClaim, DiagnosticModel, Observation, PredictionSet } from "./model.js";
 import { optimalPolicy, policyCostForTruth } from "./optimal-policy.js";
@@ -11,8 +9,8 @@ export interface PredictionAttempt {
 }
 
 export interface GradeInput {
-  readonly truth: HypothesisId;
-  readonly diagnosis: HypothesisId;
+  readonly truth: string;
+  readonly diagnosis: string;
   readonly probes: readonly Observation[];
   readonly predictionAttempts: readonly PredictionAttempt[];
   readonly claims: readonly ArgumentClaim[];
@@ -34,9 +32,9 @@ export interface GradeBreakdown {
   readonly bestPolicyBranchCostMinutes: number;
   readonly validReasoningClaims: number;
   readonly reasoningClaimCount: number;
-  readonly evidenceSupportedHypotheses: readonly HypothesisId[];
+  readonly evidenceSupportedHypotheses: readonly string[];
   readonly claimChecks: readonly {
-    readonly hypothesisId: HypothesisId;
+    readonly hypothesisId: string;
     readonly stance: "supports" | "rules_out";
     readonly valid: boolean;
     readonly reason: string;
@@ -49,13 +47,13 @@ function clamp(value: number, min: number, max: number): number {
 
 function checkClaims(
   model: DiagnosticModel,
-  diagnosis: HypothesisId,
+  diagnosis: string,
   probes: readonly Observation[],
   claims: readonly ArgumentClaim[],
 ): GradeBreakdown["claimChecks"] {
   const evidenceById = new Map(probes.map((probe) => [probe.evidenceId, probe]));
   const allEvidenceSupportsDiagnosis = consistentHypotheses(model, probes).includes(diagnosis);
-  return HYPOTHESES.map(({ id }) => {
+  return model.hypotheses.map(({ id }) => {
     const expectedStance = id === diagnosis ? "supports" : "rules_out";
     const matching = claims.filter((claim) => claim.hypothesisId === id);
     const claim = matching.length === 1 ? matching[0] : undefined;
@@ -75,16 +73,16 @@ function checkClaims(
       return { hypothesisId: id, stance: expectedStance, valid: false, reason: "Cite at least one observation from this episode." };
     }
     if (expectedStance === "rules_out") {
-      const contradiction = cited.every((probe) => model.forecasts[probe.probeId][id] !== probe.outcomeId);
+      const contradiction = cited.every((probe) => model.forecasts[probe.probeId]![id] !== probe.outcomeId);
       return contradiction
         ? { hypothesisId: id, stance: expectedStance, valid: true, reason: "A cited observation contradicts this cause." }
         : { hypothesisId: id, stance: expectedStance, valid: false, reason: "The cited observations do not contradict this cause." };
     }
 
     const supportedByDiscriminatingEvidence = allEvidenceSupportsDiagnosis && cited.some((probe) => {
-      if (model.forecasts[probe.probeId][id] !== probe.outcomeId) return false;
-      return HYPOTHESES.some(({ id: otherId }) =>
-        otherId !== id && model.forecasts[probe.probeId][otherId] !== probe.outcomeId,
+      if (model.forecasts[probe.probeId]![id] !== probe.outcomeId) return false;
+      return model.hypotheses.some(({ id: otherId }) =>
+        otherId !== id && model.forecasts[probe.probeId]![otherId] !== probe.outcomeId,
       );
     });
     return supportedByDiscriminatingEvidence
@@ -118,7 +116,7 @@ export function gradeEpisode(model: DiagnosticModel, input: GradeInput): GradeBr
     if (!probeSpec.outcomes.includes(run.outcomeId)) {
       throw new Error(`Invalid observed outcome ${run.outcomeId} for ${run.probeId}.`);
     }
-    if (model.forecasts[run.probeId][input.truth] !== run.outcomeId) {
+    if (model.forecasts[run.probeId]![input.truth] !== run.outcomeId) {
       throw new Error(`Stored observation ${run.evidenceId} does not match the server-owned case truth.`);
     }
     observedProbeIds.add(run.probeId);
@@ -141,13 +139,13 @@ export function gradeEpisode(model: DiagnosticModel, input: GradeInput): GradeBr
       throw new Error(`Prediction accuracy accepts one first-commit table per probe; duplicate ${attempt.probeId}.`);
     }
     predictedProbeIds.add(attempt.probeId);
-    const predictionIssues = validatePredictions(attempt.probeId, attempt.predictions);
+    const predictionIssues = validatePredictions(model, attempt.probeId, attempt.predictions);
     if (predictionIssues.length > 0) {
       throw new Error(`Invalid prediction table for ${attempt.probeId}: ${predictionIssues.join(" ")}`);
     }
     for (const { id } of model.hypotheses) {
       predictionCount += 1;
-      if (attempt.predictions[id] === model.forecasts[attempt.probeId][id]) correctPredictions += 1;
+      if (attempt.predictions[id] === model.forecasts[attempt.probeId]![id]) correctPredictions += 1;
     }
   }
   for (const probeId of observedProbeIds) {
@@ -173,7 +171,7 @@ export function gradeEpisode(model: DiagnosticModel, input: GradeInput): GradeBr
 
   const claimChecks = checkClaims(model, input.diagnosis, input.probes, input.claims);
   const validReasoningClaims = claimChecks.filter(({ valid }) => valid).length;
-  const reasoningClaimCount = HYPOTHESES.length;
+  const reasoningClaimCount = model.hypotheses.length;
   const reasoning = (15 * validReasoningClaims) / reasoningClaimCount;
   const diagnosis = input.truth === input.diagnosis ? 35 : 0;
   const evidenceSufficiency = evidenceSupportedHypotheses.length === 1 ? 15 : 0;

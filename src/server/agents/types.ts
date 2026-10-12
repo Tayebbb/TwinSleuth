@@ -1,11 +1,10 @@
 import type { ArgumentClaim, Observation, PredictionSet } from "../../engine/model.js";
-import type { HypothesisId } from "../../case/catalog.js";
 
 export interface SkepticAgentInput {
-  readonly possibleHypotheses: readonly HypothesisId[];
+  readonly possibleHypotheses: readonly string[];
   readonly predictions: PredictionSet;
   readonly observations: readonly Observation[];
-  readonly triggers: readonly { kind: string; hypothesisIds: readonly HypothesisId[] }[];
+  readonly triggers: readonly { kind: string; hypothesisIds: readonly string[] }[];
 }
 
 export interface AgentTrace {
@@ -16,10 +15,10 @@ export interface AgentTrace {
 }
 
 export interface ExaminerAgentInput {
-  readonly diagnosis: HypothesisId;
+  readonly diagnosis: string;
   readonly justification: string;
   readonly claims: readonly ArgumentClaim[];
-  readonly claimChecks: readonly { hypothesisId: HypothesisId; valid: boolean; reason: string }[];
+  readonly claimChecks: readonly { hypothesisId: string; valid: boolean; reason: string }[];
 }
 
 export interface StructuredModelClient {

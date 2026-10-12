@@ -12,6 +12,21 @@ function action(type: object, revision: number, actionId: string = randomUUID())
 }
 
 describe("event-backed episode service", () => {
+  it("starts, validates, exports, and permanently deletes a local conveyor episode", () => {
+    const service = new EpisodeService();
+    const view = service.start("conveyor-index-drift", "C1");
+    expect(view.caseId).toBe("conveyor-index-drift");
+    expect(view.public.hypotheses.map(({ id }) => id)).toEqual(["C1", "C2", "C3", "C4"]);
+    expect(JSON.stringify(view)).not.toContain('"C1":"count-low"');
+    expect(service.list()).toContainEqual(expect.objectContaining({ id: view.id, title: "Conveyor Index Drift" }));
+    const exported = service.export(view.id);
+    expect(exported.format).toBe("twinsleuth-local-episode-v1");
+    expect(JSON.stringify(exported)).not.toContain("truth_hypothesis_id");
+    service.delete(view.id);
+    expect(service.list().some((entry) => entry.id === view.id)).toBe(false);
+    expect(() => service.get(view.id)).toThrow("not found");
+    service.close();
+  });
   it("keeps truth and unrun forecasts out of the public view", () => {
     const service = new EpisodeService();
     const view = service.start("H1");

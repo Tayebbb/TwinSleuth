@@ -1,5 +1,3 @@
-import { HYPOTHESES, PROBE_OUTCOMES, PROBES } from "../case/catalog.js";
-import type { HypothesisId, ProbeId } from "../case/catalog.js";
 import { optimalPolicy } from "./optimal-policy.js";
 import type { DiagnosticModel } from "./model.js";
 import { separates } from "./diagnostics.js";
@@ -7,53 +5,39 @@ import { separates } from "./diagnostics.js";
 export interface CaseValidation {
   readonly ok: boolean;
   readonly issues: readonly string[];
-  readonly pairSeparators: Readonly<Record<string, readonly ProbeId[]>>;
+  readonly pairSeparators: Readonly<Record<string, readonly string[]>>;
   readonly expectedCostMinutes?: number;
   readonly worstCaseCostMinutes?: number;
 }
 
 export function validateCase(model: DiagnosticModel): CaseValidation {
   const issues: string[] = [];
-  const hypothesisIds = HYPOTHESES.map(({ id }) => id);
-  const probeIds = PROBES.map(({ id }) => id);
-
-  if (model.hypotheses.length !== hypothesisIds.length ||
-      model.hypotheses.some(({ id }, i) => id !== hypothesisIds[i])) {
-    issues.push("The model's hypotheses do not match the public case catalog.");
-  }
-  if (model.probes.length !== probeIds.length || model.probes.some(({ id }, i) => id !== probeIds[i])) {
-    issues.push("The model's probes do not match the public case catalog.");
-  }
+  const hypothesisIds = model.hypotheses.map(({ id }) => id);
+  const probeIds = model.probes.map(({ id }) => id);
+  if (hypothesisIds.length < 2 || new Set(hypothesisIds).size !== hypothesisIds.length) issues.push("A case needs at least two uniquely identified hypotheses.");
+  if (probeIds.length < 1 || new Set(probeIds).size !== probeIds.length) issues.push("A case needs uniquely identified probes.");
 
   if (!Number.isFinite(model.budgetMinutes) || model.budgetMinutes <= 0) {
     issues.push("The diagnostic budget must be a finite positive number.");
   }
 
-  for (const publicProbe of PROBES) {
-    const probe = model.probes.find(({ id }) => id === publicProbe.id);
-    if (!probe) continue;
-    if (!Number.isFinite(probe.costMinutes) || probe.costMinutes !== publicProbe.costMinutes) {
-      issues.push(`${publicProbe.id} cost must match the public case catalog (${publicProbe.costMinutes} minutes).`);
-    }
-    const publicOutcomes = PROBE_OUTCOMES[publicProbe.id] as readonly string[];
-    if (probe.outcomes.length !== publicOutcomes.length ||
-        probe.outcomes.some((outcome, index) => outcome !== publicOutcomes[index])) {
-      issues.push(`${publicProbe.id} outcomes must match the public case catalog.`);
-    }
+  for (const probe of model.probes) {
+    if (!Number.isFinite(probe.costMinutes) || probe.costMinutes <= 0) issues.push(`${probe.id} cost must be finite and positive.`);
+    if (probe.outcomes.length < 1 || new Set(probe.outcomes).size !== probe.outcomes.length) issues.push(`${probe.id} needs unique possible outcomes.`);
 
-    const row = model.forecasts[publicProbe.id];
+    const row = model.forecasts[probe.id];
     if (!row) {
-      issues.push(`${publicProbe.id} has no forecast row.`);
+      issues.push(`${probe.id} has no forecast row.`);
       continue;
     }
     const rowIds = Object.keys(row).sort();
     if (rowIds.join(",") !== [...hypothesisIds].sort().join(",")) {
-      issues.push(`${publicProbe.id} must have exactly one forecast for every hypothesis.`);
+      issues.push(`${probe.id} must have exactly one forecast for every hypothesis.`);
     }
     for (const hypothesisId of hypothesisIds) {
       const outcome = row[hypothesisId];
       if (outcome === undefined || !probe.outcomes.includes(outcome)) {
-        issues.push(`${publicProbe.id}/${hypothesisId} has an invalid forecast outcome.`);
+        issues.push(`${probe.id}/${hypothesisId} has an invalid forecast outcome.`);
       }
     }
   }
@@ -63,12 +47,12 @@ export function validateCase(model: DiagnosticModel): CaseValidation {
     issues.push("The forecast table must contain exactly the public probes.");
   }
 
-  const priorTotal = hypothesisIds.reduce((sum, id) => sum + model.prior[id], 0);
+  const priorTotal = hypothesisIds.reduce((sum, id) => sum + model.prior[id]!, 0);
   for (const id of hypothesisIds) {
-    if (!Number.isFinite(model.prior[id]) || !(model.prior[id] > 0)) {
+    if (!Number.isFinite(model.prior[id]) || !(model.prior[id]! > 0)) {
       issues.push(`${id} must have a finite positive prior probability.`);
-    } else if (Math.abs(model.prior[id] - 1 / hypothesisIds.length) > 1e-9) {
-      issues.push("This case requires a uniform prior across its four hypotheses.");
+    } else if (Math.abs(model.prior[id]! - 1 / hypothesisIds.length) > 1e-9) {
+      issues.push("This case requires a uniform prior across its hypotheses.");
     }
   }
   const priorIds = Object.keys(model.prior).sort();
@@ -82,7 +66,7 @@ export function validateCase(model: DiagnosticModel): CaseValidation {
   // Pairwise calculations assume the public rows, outcomes, and prior are structurally valid.
   if (issues.length > 0) return { ok: false, issues, pairSeparators: {} };
 
-  const pairSeparators: Record<string, ProbeId[]> = {};
+  const pairSeparators: Record<string, string[]> = {};
   for (let i = 0; i < hypothesisIds.length; i += 1) {
     for (let j = i + 1; j < hypothesisIds.length; j += 1) {
       const left = hypothesisIds[i]!;
@@ -114,6 +98,6 @@ export function validateCase(model: DiagnosticModel): CaseValidation {
   }
 }
 
-export function allHypothesisIds(): readonly HypothesisId[] {
-  return HYPOTHESES.map(({ id }) => id);
+export function allHypothesisIds(model: DiagnosticModel): readonly string[] {
+  return model.hypotheses.map(({ id }) => id);
 }

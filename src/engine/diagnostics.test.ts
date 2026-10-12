@@ -15,7 +15,7 @@ function independentBestExpectedCost(remaining: readonly ModelHypothesisId[], bu
     if (used.includes(probe.id) || probe.costMinutes > budget) return [];
     const partitions = new Map<string, typeof remaining>();
     for (const hypothesisId of remaining) {
-      const outcome = PIN9_MODEL.forecasts[probe.id][hypothesisId];
+      const outcome = PIN9_MODEL.forecasts[probe.id]![hypothesisId]!;
       partitions.set(outcome, [...(partitions.get(outcome) ?? []), hypothesisId]);
     }
     if (partitions.size < 2) return [];
@@ -23,8 +23,8 @@ function independentBestExpectedCost(remaining: readonly ModelHypothesisId[], bu
     for (const group of partitions.values()) {
       const child = independentBestExpectedCost(group, budget - probe.costMinutes, [...used, probe.id]);
       if (child === undefined) return [];
-      const probability = group.reduce((total, id) => total + PIN9_MODEL.prior[id], 0)
-        / remaining.reduce((total, id) => total + PIN9_MODEL.prior[id], 0);
+      const probability = group.reduce((total, id) => total + PIN9_MODEL.prior[id]!, 0)
+        / remaining.reduce((total, id) => total + PIN9_MODEL.prior[id]!, 0);
       expected += probability * child;
     }
     return [expected];
@@ -76,13 +76,13 @@ describe("PIN-9 diagnostic case", () => {
         const probes = sequence.map((probeId, index) => ({
           evidenceId: `${truth}-${sequence.join("")}-${index}`,
           probeId,
-          outcomeId: PIN9_MODEL.forecasts[probeId][truth],
+          outcomeId: PIN9_MODEL.forecasts[probeId]![truth]!,
         }));
         const score = gradeEpisode(PIN9_MODEL, {
           truth,
           diagnosis: truth,
           probes,
-          predictionAttempts: sequence.map((probeId) => ({ probeId, predictions: PIN9_MODEL.forecasts[probeId] })),
+        predictionAttempts: sequence.map((probeId) => ({ probeId, predictions: PIN9_MODEL.forecasts[probeId]! })),
           claims: [],
           unsafeAttempts: 0,
         });
@@ -113,17 +113,18 @@ describe("PIN-9 diagnostic case", () => {
   });
 
   it("requires one prediction for each public cause and valid probe outcomes", () => {
-    expect(validatePredictions("P3", {
+    expect(validatePredictions(PIN9_MODEL, "P3", {
       H1: "completed", H2: "refused", H3: "refused", H4: "completed",
     })).toEqual([]);
-    expect(validatePredictions("P3", { H1: "completed", H2: "refused", H3: "refused" })).toHaveLength(1);
-    expect(validatePredictions("P3", {
+    expect(validatePredictions(PIN9_MODEL, "P3", { H1: "completed", H2: "refused", H3: "refused" })).toHaveLength(1);
+    expect(validatePredictions(PIN9_MODEL, "P3", {
       H1: "completed", H2: "refused", H3: "refused", H4: "out-of-reach",
     })).toHaveLength(1);
   });
 
   it("bases pre-run challenge signals only on learner predictions and already-revealed evidence", () => {
     const input = {
+      hypothesisIds: ["H1", "H2", "H3", "H4"] as const,
       possibleHypotheses: ["H1", "H2", "H3", "H4"] as const,
       evidenceSupportedHypotheses: ["H1", "H2", "H3", "H4"] as const,
       predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" } as const,
@@ -131,13 +132,13 @@ describe("PIN-9 diagnostic case", () => {
     const first = detectSkepticTriggers(input);
     expect(first[0]?.kind).toBe("same-prediction");
     expect(Object.keys(input).sort()).toEqual([
-      "evidenceSupportedHypotheses", "possibleHypotheses", "predictions",
+      "evidenceSupportedHypotheses", "hypothesisIds", "possibleHypotheses", "predictions",
     ]);
   });
 
   it("challenges a cause ruled out despite already-revealed evidence supporting it", () => {
     expect(detectSkepticTriggers({
-      possibleHypotheses: ["H1"],
+      hypothesisIds: ["H1", "H2", "H3", "H4"], possibleHypotheses: ["H1"],
       evidenceSupportedHypotheses: ["H1", "H4"],
       predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
     })).toContainEqual({ kind: "premature-elimination", hypothesisIds: ["H4"] });
@@ -145,7 +146,7 @@ describe("PIN-9 diagnostic case", () => {
 
   it("does not challenge a balanced and informative split that matches the optimal P3 strategy", () => {
     expect(detectSkepticTriggers({
-      possibleHypotheses: ["H1", "H2", "H3", "H4"],
+      hypothesisIds: ["H1", "H2", "H3", "H4"], possibleHypotheses: ["H1", "H2", "H3", "H4"],
       evidenceSupportedHypotheses: ["H1", "H2", "H3", "H4"],
       predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" },
     })).toEqual([]);
@@ -153,24 +154,24 @@ describe("PIN-9 diagnostic case", () => {
 
   it("challenges when any two possible causes share a prediction in a non-informative grouping", () => {
     expect(detectSkepticTriggers({
-      possibleHypotheses: ["H1", "H2", "H3"],
+      hypothesisIds: ["H1", "H2", "H3", "H4"], possibleHypotheses: ["H1", "H2", "H3"],
       evidenceSupportedHypotheses: ["H1", "H2", "H3"],
       predictions: { H1: "refused", H2: "refused", H3: "completed", H4: "completed" },
     })[0]).toEqual({ kind: "same-prediction", hypothesisIds: ["H1", "H2"], predictedOutcome: "refused" });
   });
 
-  it("rejects a case model whose probe cost or outcomes drift from the public catalog", () => {
+  it("rejects a case model with invalid probe definitions", () => {
     const wrongCost = {
       ...PIN9_MODEL,
-      probes: PIN9_MODEL.probes.map((probe) => probe.id === "P3" ? { ...probe, costMinutes: 6 } : probe),
+      probes: PIN9_MODEL.probes.map((probe) => probe.id === "P3" ? { ...probe, costMinutes: 0 } : probe),
     };
-    expect(validateCase(wrongCost).issues.join(" ")).toContain("P3 cost must match");
+    expect(validateCase(wrongCost).issues.join(" ")).toContain("P3 cost must be finite and positive");
 
     const wrongOutcomes = {
       ...PIN9_MODEL,
       probes: PIN9_MODEL.probes.map((probe) => probe.id === "P3" ? { ...probe, outcomes: ["completed"] as const } : probe),
     };
-    expect(validateCase(wrongOutcomes).issues.join(" ")).toContain("P3 outcomes must match");
+    expect(validateCase(wrongOutcomes).issues.join(" ")).toContain("P3/H2 has an invalid forecast outcome");
   });
 
   it("rejects a non-finite diagnostic budget before policy calculations", () => {

@@ -1,11 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { ZodError } from "zod";
-import { EpisodeService, ConflictError, NotFoundError } from "./episode-service.js";
+import { EpisodeService, ConflictError, NotFoundError, ValidationError } from "./episode-service.js";
 import { episodeStartRequestSchema } from "./schemas.js";
+import { CASES, getCase } from "./case-model/registry.js";
 
 function publicError(error: unknown): { code: number; message: string } {
-  if (error instanceof ConflictError || error instanceof NotFoundError) return { code: error.statusCode, message: error.message };
+  if (error instanceof ConflictError || error instanceof NotFoundError || error instanceof ValidationError) return { code: error.statusCode, message: error.message };
   if (error instanceof ZodError) return { code: 400, message: "Request is invalid." };
   return { code: 500, message: "TwinSleuth could not complete that request." };
 }
@@ -38,25 +39,31 @@ export function buildApp(service = new EpisodeService()) {
   });
   void app.register(cors, { origin: (origin, callback) => callback(null, !origin || origin === allowedOrigin ? allowedOrigin : false) });
   app.addHook("preHandler", async (request, reply) => {
-    if (request.method !== "POST") return;
+    if (request.method !== "POST" && request.method !== "DELETE") return;
     const origin = request.headers.origin;
     if (origin && origin !== allowedOrigin) return reply.code(403).send({ error: "Origin is not allowed." });
+    if (request.method !== "POST") return;
     const contentType = request.headers["content-type"] ?? "";
     if (!/^application\/json(?:\s*;|$)/i.test(contentType)) return reply.code(415).send({ error: "Content-Type must be application/json." });
     if (request.url.split("?")[0] === "/api/episodes") {
-      if (!withinRateLimit(episodeStartWindows, request.ip, 20)) return reply.code(429).send({ error: "Episode start limit reached. Try again in a minute." });
+      if (!withinRateLimit(episodeStartWindows, request.ip, 60)) return reply.code(429).send({ error: "Episode start limit reached. Try again in a minute." });
     }
     if (/^\/api\/episodes\/[^/]+\/actions$/.test(request.url.split("?")[0] ?? "")) {
       if (!withinRateLimit(actionWindows, request.ip, 120)) return reply.code(429).send({ error: "Action limit reached. Try again in a minute." });
     }
   });
   app.get("/api/health", async () => ({ ok: true }));
+  app.get("/api/cases", async () => CASES.map(({ public: entry }) => ({ id: entry.id, title: entry.title, symptom: entry.symptom })));
+  app.get("/api/episodes", async () => service.list());
   app.post("/api/episodes", async (request, reply) => {
     try {
-      episodeStartRequestSchema.parse(request.body);
+      const start = episodeStartRequestSchema.parse(request.body);
+      const caseId = start.caseId ?? CASES[0]!.public.id;
+      if (!getCase(caseId)) return reply.code(400).send({ error: "Unknown practice case." });
       const demoTruth = process.env.DEMO_TRUTH;
-      const truth = demoTruth === "H1" || demoTruth === "H2" || demoTruth === "H3" || demoTruth === "H4" ? demoTruth : undefined;
-      return service.start(truth);
+      const definition = getCase(caseId)!;
+      const truth = definition.model.hypotheses.some(({ id }) => id === demoTruth) ? demoTruth : undefined;
+      return service.start(caseId, truth);
     } catch (error) {
       const result = publicError(error);
       return reply.code(result.code).send({ error: result.message });
@@ -70,8 +77,23 @@ export function buildApp(service = new EpisodeService()) {
     try { return service.replay((request.params as { id: string }).id); }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
+  app.get("/api/episodes/:id/export", async (request, reply) => {
+    try { return service.export((request.params as { id: string }).id); }
+    catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
+  });
+  app.delete("/api/episodes/:id", async (request, reply) => {
+    try { service.delete((request.params as { id: string }).id); return reply.code(204).send(); }
+    catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
+  });
   app.post("/api/episodes/:id/actions", async (request, reply) => {
-    try { return service.act((request.params as { id: string }).id, request.body); }
+    try {
+      const id = (request.params as { id: string }).id;
+      const raw = request.body as { action?: { type?: string; probeId?: string } };
+      if ((raw.action?.type === "run" || raw.action?.type === "propose") && raw.action.probeId && !service.get(id).public.probes.some((probe) => probe.id === raw.action?.probeId)) {
+        return reply.code(400).send({ error: "Request is invalid." });
+      }
+      return service.act(id, request.body);
+    }
     catch (error) {
       const result = publicError(error);
       return reply.code(result.code).send({ error: result.message });

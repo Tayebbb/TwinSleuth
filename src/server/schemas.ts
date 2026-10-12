@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { HYPOTHESES, PROBES, PROBE_OUTCOMES } from "../case/catalog.js";
+const hypothesisId = z.string().min(1).max(40);
+const probeId = z.string().min(1).max(40);
 
-const hypothesisId = z.enum(["H1", "H2", "H3", "H4"]);
-const probeId = z.enum(["P1", "P2", "P3", "P4", "P5", "P6"]);
-
-export const episodeStartRequestSchema = z.object({}).strict();
+export const episodeStartRequestSchema = z.object({ caseId: z.string().min(1).max(80).optional() }).strict();
 
 export const predictionSetSchema = z.record(hypothesisId, z.string());
 
@@ -17,7 +15,7 @@ export const claimSchema = z.object({
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("beliefs"),
-    possibleHypotheses: z.array(hypothesisId).min(1).max(HYPOTHESES.length),
+    possibleHypotheses: z.array(hypothesisId).min(1).max(12),
   }).strict(),
   z.object({
     type: z.literal("propose"),
@@ -39,7 +37,7 @@ export const actionSchema = z.discriminatedUnion("type", [
     diagnosis: hypothesisId,
     confidence: z.number().int().min(1).max(5),
     justification: z.string().trim().min(1).max(1200),
-    claims: z.array(claimSchema).max(HYPOTHESES.length),
+    claims: z.array(claimSchema).max(12),
   }).strict(),
 ]);
 
@@ -51,8 +49,3 @@ export const actionRequestSchema = z.object({
 
 export type ActionRequest = z.infer<typeof actionRequestSchema>;
 export type Action = ActionRequest["action"];
-
-export function isOutcome(probe: string, outcome: string): boolean {
-  const values = PROBE_OUTCOMES[probe as keyof typeof PROBE_OUTCOMES];
-  return values !== undefined && (values as readonly string[]).includes(outcome);
-}

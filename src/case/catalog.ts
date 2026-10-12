@@ -107,3 +107,20 @@ export const UNSAFE_ACTION = {
   id: "U1",
   label: "Bypass the safety controller and force the move",
 } as const;
+
+/** Public material is safe for the browser; forecasts live only on the server. */
+export interface PublicCase {
+  readonly id: string;
+  readonly title: string;
+  readonly hypotheses: readonly { readonly id: string; readonly title: string; readonly detail: string }[];
+  readonly probes: readonly { readonly id: string; readonly title: string; readonly description: string; readonly costMinutes: number; readonly outcomes: readonly string[] }[];
+  readonly symptom: { readonly task: string; readonly controllerCode: string; readonly message: string; readonly estop: string };
+  readonly maintenanceLog: readonly string[];
+  readonly colleagueNote: string;
+  readonly unsafeAction: { readonly id: string; readonly label: string };
+}
+
+export const PIN9_CASE: PublicCase = {
+  id: CASE_ID, title: CASE_TITLE, hypotheses: HYPOTHESES, probes: PROBES,
+  symptom: INITIAL_SYMPTOM, maintenanceLog: MAINTENANCE_LOG, colleagueNote: COLLEAGUE_NOTE, unsafeAction: UNSAFE_ACTION,
+};

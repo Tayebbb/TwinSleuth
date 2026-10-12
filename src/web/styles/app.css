@@ -242,6 +242,16 @@ pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 
 .truth-reveal p { margin: 0 0 0 auto; color: var(--ink-soft); font-size: .75rem; }
 .replay { margin-top: 13px; border-radius: 5px; }
 .workspace-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line-strong); margin-top: 15px; padding: 10px 2px 0; color: var(--ink-muted); font-size: .74rem; }
+.case-switch, .history-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 9px 2px; color: var(--ink-soft); font-size: .8rem; }
+.case-switch select, .case-switch button, .history-panel button { min-height: 44px; }
+.history-panel { display: block; margin: 0 0 12px; }
+.history-panel summary { min-height: 44px; cursor: pointer; font-weight: 650; }
+.history-panel p { max-width: 76ch; color: var(--ink-muted); font-size: .76rem; line-height: 1.45; }
+.history-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); padding: 8px 0; font-size: .76rem; }
+.history-row a { color: var(--signal-deep); }
+.deterministic-lessons { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.deterministic-lessons h3 { margin: 0 0 6px; font-size: 1rem; }
+.deterministic-lessons p { margin: 5px 0; color: var(--ink-soft); font-size: .8rem; line-height: 1.45; }
 .error { color: var(--alarm); }
 .toast { position: fixed; right: 20px; bottom: 20px; z-index: 20; max-width: min(420px, calc(100vw - 40px)); border: 1px solid #b96d62; background: var(--surface-raised); box-shadow: 0 5px 18px rgba(28,38,32,.14); padding: 12px; }
 .loading { min-height: 80vh; display: grid; align-content: center; justify-items: start; }
@@ -359,6 +369,9 @@ pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 
   .truth-reveal h3, .truth-reveal > span { width: 100%; }
   .truth-reveal p { margin-left: 0; font-size: .73rem; }
   .workspace-footer { flex-direction: column; gap: 4px; font-size: .72rem; }
+  .case-switch { align-items: stretch; }
+  .case-switch select, .case-switch button { width: 100%; }
+  .history-row { align-items: flex-start; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

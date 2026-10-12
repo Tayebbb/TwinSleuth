@@ -8,44 +8,44 @@ import "@fontsource/source-sans-3/latin-400.css";
 import "@fontsource/source-sans-3/latin-600.css";
 import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
-import type { HypothesisId, ProbeId, OutcomeId } from "../case/catalog.js";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
-type Claim = { hypothesisId: HypothesisId; stance: "supports" | "rules_out"; evidenceIds: string[] };
+type Claim = { hypothesisId: string; stance: "supports" | "rules_out"; evidenceIds: string[] };
 type View = {
-  id: string; revision: number; status: "active" | "evaluated"; beliefs: HypothesisId[];
-  proposals: Record<string, Record<HypothesisId, OutcomeId>>; revisedPredictions: Record<string, Record<HypothesisId, OutcomeId>>;
-  observations: { evidenceId: string; probeId: ProbeId; outcomeId: OutcomeId }[]; remainingMinutes: number; budgetMinutes: number;
-  pendingProbe?: ProbeId; skeptic?: { question: string; probeId: ProbeId; triggers: { kind: string; hypothesisIds: HypothesisId[] }[] };
-  diagnosis?: { diagnosis: HypothesisId; confidence: number; justification: string; claims: Claim[] };
-  score?: { total: number; diagnosis: number; evidenceSufficiency: number; predictionAccuracy: number; probeQuality: number; reasoning: number; claimChecks: { hypothesisId: HypothesisId; stance: string; valid: boolean; reason: string }[]; actualCostMinutes: number; bestPolicyBranchCostMinutes: number; evidenceSupportedHypotheses: HypothesisId[] };
-  truthHypothesis?: HypothesisId;
-  beliefTimeline: { revision: number; beliefs: HypothesisId[] }[];
-  evidenceTimeline: { evidenceId: string; supported: HypothesisId[] }[];
-  revealedForecasts: Partial<Record<ProbeId, Record<HypothesisId, OutcomeId>>>;
-  forecastTable?: Record<ProbeId, Record<HypothesisId, OutcomeId>>;
+  id: string; caseId: string; title: string; revision: number; status: "active" | "evaluated"; beliefs: string[];
+  proposals: Record<string, Record<string, string>>; revisedPredictions: Record<string, Record<string, string>>;
+  observations: { evidenceId: string; probeId: string; outcomeId: string }[]; remainingMinutes: number; budgetMinutes: number;
+  pendingProbe?: string; skeptic?: { question: string; probeId: string; triggers: { kind: string; hypothesisIds: string[] }[] };
+  diagnosis?: { diagnosis: string; confidence: number; justification: string; claims: Claim[] };
+  score?: { total: number; diagnosis: number; evidenceSufficiency: number; predictionAccuracy: number; probeQuality: number; reasoning: number; claimChecks: { hypothesisId: string; stance: string; valid: boolean; reason: string }[]; actualCostMinutes: number; bestPolicyBranchCostMinutes: number; evidenceSupportedHypotheses: string[] };
+  truthHypothesis?: string;
+  beliefTimeline: { revision: number; beliefs: string[] }[];
+  evidenceTimeline: { evidenceId: string; supported: string[] }[];
+  revealedForecasts: Partial<Record<string, Record<string, string>>>;
+  forecastTable?: Record<string, Record<string, string>>;
   traces: { graph: string; status: string; inputSummary: string; output: string }[];
   pendingAgents?: ("skeptic" | "examiner")[];
-  public: { hypotheses: { id: HypothesisId; title: string; detail: string }[]; probes: { id: ProbeId; title: string; description: string; costMinutes: number; outcomes: readonly string[] }[]; symptom: { task: string; controllerCode: string; message: string; estop: string }; maintenanceLog: readonly string[]; colleagueNote: string; unsafeAction: { id: string; label: string } };
+  debrief?: { probeLessons: { probeId: string; informative: boolean; remaining: string[]; lesson: string }[]; betterNextProbe?: string; pathLesson: string };
+  public: { hypotheses: { id: string; title: string; detail: string }[]; probes: { id: string; title: string; description: string; costMinutes: number; outcomes: readonly string[] }[]; symptom: { task: string; controllerCode: string; message: string; estop: string }; maintenanceLog: readonly string[]; colleagueNote: string; unsafeAction: { id: string; label: string } };
 };
 type Action = { type: string; [key: string]: unknown };
 
 const outcomeLabels: Record<string, string> = { refused: "Refused", completed: "Completed", "stopped-at-95": "Stopped at 95°", "full-range": "Full range", reachable: "Reachable", "out-of-reach": "Out of reach", overlap: "Overlap", clear: "Clear" };
 const requestTimeoutMs = 10_000;
-const hypothesisIdSchema = z.enum(["H1", "H2", "H3", "H4"]);
-const probeIdSchema = z.enum(["P1", "P2", "P3", "P4", "P5", "P6"]);
-const outcomeIdSchema = z.enum(["refused", "completed", "stopped-at-95", "full-range", "reachable", "out-of-reach", "overlap", "clear"]);
-const predictionSchema = z.record(hypothesisIdSchema, outcomeIdSchema);
+const hypothesisIdSchema = z.string().min(1);
+const probeIdSchema = z.string().min(1);
+const outcomeIdSchema = z.string().min(1);
+const predictionSchema = z.record(z.string(), z.string());
 const viewSchema = z.object({
-  id: z.string().min(1), revision: z.number().int().nonnegative(), status: z.enum(["active", "evaluated"]), beliefs: z.array(hypothesisIdSchema),
+  id: z.string().min(1), caseId: z.string().min(1), title: z.string().min(1), revision: z.number().int().nonnegative(), status: z.enum(["active", "evaluated"]), beliefs: z.array(hypothesisIdSchema),
   proposals: z.record(z.string(), predictionSchema), revisedPredictions: z.record(z.string(), predictionSchema),
   observations: z.array(z.object({ evidenceId: z.string().min(1), probeId: probeIdSchema, outcomeId: outcomeIdSchema })), remainingMinutes: z.number().finite(), budgetMinutes: z.number().positive(),
   pendingProbe: probeIdSchema.optional(), skeptic: z.object({ question: z.string().min(1).max(280), probeId: probeIdSchema, triggers: z.array(z.object({ kind: z.string(), hypothesisIds: z.array(hypothesisIdSchema) })) }).optional(),
   diagnosis: z.object({ diagnosis: hypothesisIdSchema, confidence: z.number(), justification: z.string(), claims: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.enum(["supports", "rules_out"]), evidenceIds: z.array(z.string()) })) }).optional(),
   score: z.object({ total: z.number(), diagnosis: z.number(), evidenceSufficiency: z.number(), predictionAccuracy: z.number(), probeQuality: z.number(), reasoning: z.number(), claimChecks: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.string(), valid: z.boolean(), reason: z.string() })), actualCostMinutes: z.number(), bestPolicyBranchCostMinutes: z.number(), evidenceSupportedHypotheses: z.array(hypothesisIdSchema) }).optional(),
   truthHypothesis: hypothesisIdSchema.optional(), beliefTimeline: z.array(z.object({ revision: z.number(), beliefs: z.array(hypothesisIdSchema) })), evidenceTimeline: z.array(z.object({ evidenceId: z.string(), supported: z.array(hypothesisIdSchema) })),
-  revealedForecasts: z.partialRecord(probeIdSchema, predictionSchema), forecastTable: z.record(probeIdSchema, predictionSchema).optional(), traces: z.array(z.object({ graph: z.string(), status: z.string(), inputSummary: z.string(), output: z.string() })), pendingAgents: z.array(z.enum(["skeptic", "examiner"])).optional(),
+  revealedForecasts: z.partialRecord(probeIdSchema, predictionSchema), forecastTable: z.record(probeIdSchema, predictionSchema).optional(), traces: z.array(z.object({ graph: z.string(), status: z.string(), inputSummary: z.string(), output: z.string() })), pendingAgents: z.array(z.enum(["skeptic", "examiner"])).optional(), debrief: z.object({ probeLessons: z.array(z.object({ probeId: z.string(), informative: z.boolean(), remaining: z.array(z.string()), lesson: z.string() })), betterNextProbe: z.string().optional(), pathLesson: z.string() }).optional(),
   public: z.object({ hypotheses: z.array(z.object({ id: hypothesisIdSchema, title: z.string(), detail: z.string() })), probes: z.array(z.object({ id: probeIdSchema, title: z.string(), description: z.string(), costMinutes: z.number(), outcomes: z.array(outcomeIdSchema) })), symptom: z.object({ task: z.string(), controllerCode: z.string(), message: z.string(), estop: z.string() }), maintenanceLog: z.array(z.string()), colleagueNote: z.string(), unsafeAction: z.object({ id: z.string(), label: z.string() }) }),
 });
 
@@ -101,6 +101,16 @@ function ArmSketch({ state }: { state: string }) {
   </svg>;
 }
 
+function ConveyorSketch() {
+  return <svg className="arm-sketch" viewBox="0 0 500 280" role="img" aria-label="Conveyor visualization: indexing station">
+    <rect x="46" y="148" width="408" height="42" rx="8" className="arm-base" />
+    {[78, 150, 222, 294, 366].map((x) => <circle key={x} cx={x} cy="208" r="14" className="joint" />)}
+    {[102, 198, 294, 390].map((x) => <rect key={x} x={x} y="120" width="48" height="26" rx="3" className="key" />)}
+    <path d="M112 88H366" className="tool-link" /><path d="M352 76L370 88L352 100" className="tool-link" />
+    <text x="48" y="58" className="svg-label">ENCODER / INDEX STATION</text><text x="48" y="246" className="svg-small">BELT DRIVE</text><text x="352" y="114" className="svg-small">PHOTOEYE</text>
+  </svg>;
+}
+
 function App() {
   const startRequest = useRef<Promise<void> | null>(null);
   const initialStartRequested = useRef(false);
@@ -109,37 +119,49 @@ function App() {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
   const [actionPending, setActionPending] = useState(false);
-  const [selectedProbe, setSelectedProbe] = useState<ProbeId>("P1");
-  const [predictions, setPredictions] = useState<Record<HypothesisId, string>>({ H1: "", H2: "", H3: "", H4: "" });
+  const [selectedProbe, setSelectedProbe] = useState<string>("P1");
+  const [predictions, setPredictions] = useState<Record<string, string>>({ H1: "", H2: "", H3: "", H4: "" });
   const [justification, setJustification] = useState("");
-  const [diagnosis, setDiagnosis] = useState<HypothesisId>("H1");
+  const [diagnosis, setDiagnosis] = useState<string>("H1");
   const [confidence, setConfidence] = useState(3);
-  const [claims, setClaims] = useState<Record<HypothesisId, Claim>>({ H1: { hypothesisId: "H1", stance: "supports", evidenceIds: [] }, H2: { hypothesisId: "H2", stance: "rules_out", evidenceIds: [] }, H3: { hypothesisId: "H3", stance: "rules_out", evidenceIds: [] }, H4: { hypothesisId: "H4", stance: "rules_out", evidenceIds: [] } });
-  const [possible, setPossible] = useState<Record<HypothesisId, boolean>>({ H1: true, H2: true, H3: true, H4: true });
+  const [claims, setClaims] = useState<Record<string, Claim>>({ H1: { hypothesisId: "H1", stance: "supports", evidenceIds: [] }, H2: { hypothesisId: "H2", stance: "rules_out", evidenceIds: [] }, H3: { hypothesisId: "H3", stance: "rules_out", evidenceIds: [] }, H4: { hypothesisId: "H4", stance: "rules_out", evidenceIds: [] } });
+  const [possible, setPossible] = useState<Record<string, boolean>>({ H1: true, H2: true, H3: true, H4: true });
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const [caseChoices, setCaseChoices] = useState<{ id: string; title: string }[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState("pin-9-refusal");
+  const [history, setHistory] = useState<{ id: string; title: string; status: string; createdAt: string }[]>([]);
   const resetCaseInputs = () => {
-    setSelectedProbe("P1");
-    setPredictions({ H1: "", H2: "", H3: "", H4: "" });
+    setSelectedProbe("");
+    setPredictions({});
     setJustification("");
-    setDiagnosis("H1");
+    setDiagnosis("");
     setConfidence(3);
     setClaims({ H1: { hypothesisId: "H1", stance: "supports", evidenceIds: [] }, H2: { hypothesisId: "H2", stance: "rules_out", evidenceIds: [] }, H3: { hypothesisId: "H3", stance: "rules_out", evidenceIds: [] }, H4: { hypothesisId: "H4", stance: "rules_out", evidenceIds: [] } });
     setPossible({ H1: true, H2: true, H3: true, H4: true });
     setSelectedEvidenceId(null);
     setError("");
   };
-  const start = () => {
+  const start = (caseId = selectedCaseId) => {
     if (startRequest.current) return startRequest.current;
     resetCaseInputs();
-    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}", signal: AbortSignal.timeout(requestTimeoutMs) }); if (!response.ok) throw new Error(await responseMessage(response, "The practice case could not start. Check that the TwinSleuth practice service is running, then try again.")); setView(await readView(response)); } catch (e) { const message = (e as Error).message; setError(message === "Failed to fetch" || (e as Error).name === "TimeoutError" ? "TwinSleuth could not reach the practice service in time. No case was created; try again." : message); } finally { startRequest.current = null; } })();
+    const request = (async () => { try { const response = await fetch("/api/episodes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId }), signal: AbortSignal.timeout(requestTimeoutMs) }); if (!response.ok) throw new Error(await responseMessage(response, "The practice case could not start. Check that the TwinSleuth practice service is running, then try again.")); const started = await readView(response); setSelectedCaseId(started.caseId); setSelectedProbe(started.public.probes[0]!.id); setPredictions(Object.fromEntries(started.public.hypotheses.map(({ id }) => [id, ""]))); setDiagnosis(started.public.hypotheses[0]!.id); setClaims(Object.fromEntries(started.public.hypotheses.map((item, index) => [item.id, { hypothesisId: item.id, stance: index === 0 ? "supports" : "rules_out", evidenceIds: [] }]))); setPossible(Object.fromEntries(started.public.hypotheses.map((item) => [item.id, true]))); setView(started); } catch (e) { const message = (e as Error).message; setError(message === "Failed to fetch" || (e as Error).name === "TimeoutError" ? "TwinSleuth could not reach the practice service in time. No case was created; try again." : message); } finally { startRequest.current = null; } })();
     startRequest.current = request;
     return request;
   };
   useEffect(() => {
+    void fetch("/api/cases").then((response) => response.json()).then((entries: unknown) => {
+      const parsed = z.array(z.object({ id: z.string(), title: z.string() })).safeParse(entries);
+      if (parsed.success) setCaseChoices(parsed.data);
+    }).catch(() => undefined);
     if (initialStartRequested.current) return;
     initialStartRequested.current = true;
     void start();
   }, []);
+  const refreshHistory = () => void fetch("/api/episodes").then((response) => response.json()).then((entries: unknown) => {
+    const parsed = z.array(z.object({ id: z.string(), title: z.string(), status: z.string(), createdAt: z.string() })).safeParse(entries);
+    if (parsed.success) setHistory(parsed.data);
+  }).catch(() => undefined);
+  useEffect(() => { refreshHistory(); }, [view?.id, view?.revision]);
   useEffect(() => {
     if (!view || !view.pendingAgents?.length) return;
     let stopped = false;
@@ -202,12 +224,12 @@ function App() {
   };
   const replay = () => {
     setView(null);
-    void start();
+    void start(view.caseId);
     window.history.replaceState(null, "", "#top");
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
   const lock = () => void act({ type: "lock", diagnosis, confidence, justification, claims: Object.values(claims) });
-  const updateClaim = (id: HypothesisId, patch: Partial<Claim>) => setClaims((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+  const updateClaim = (id: string, patch: Partial<Claim>) => setClaims((current) => ({ ...current, [id]: { ...current[id]!, ...patch } }));
   const armState = view.observations.length ? (view.observations.at(-1)?.probeId === "P4" ? (view.observations.at(-1)?.outcomeId === "stopped-at-95" ? "j2-stopped-95" : "j2-full-range") : view.observations.at(-1)?.probeId === "P3" ? (view.observations.at(-1)?.outcomeId === "completed" ? "p3-key-3-completed" : "p3-key-3-refused") : "initial-refusal") : "initial-refusal";
   const stageGuidance = view.status === "evaluated"
     ? "Your diagnosis has been scored. Review the evidence and debrief."
@@ -245,8 +267,8 @@ function App() {
 
     <header className="masthead" id="top">
       <div className="masthead-copy">
-        <h1>PIN-9 Refusal</h1>
-        <p className="deck">A robot arm refused its move. Build a testable explanation from the evidence.</p>
+        <h1>{view.title}</h1>
+        <p className="deck">A simulated practice case. Build a testable explanation from the evidence.</p>
       </div>
       <aside className="budget" aria-label={`${view.remainingMinutes} minutes remaining of ${view.budgetMinutes}`}>
         <div className="budget-copy"><strong>{view.remainingMinutes} min</strong><span>remaining of {view.budgetMinutes} min</span></div>
@@ -264,8 +286,8 @@ function App() {
 
     <div className="bench-grid">
       <section className="panel scene" id="machine" data-testid="scene-panel" aria-labelledby="scene-title">
-        <div className="panel-heading"><h2 id="scene-title">Stationary arm</h2><span className="signal-status">Controller response</span></div>
-        <div className="machine-figure"><ArmSketch state={armState}/><span className="figure-caption">PIN-9 · three-axis service cell</span></div>
+        <div className="panel-heading"><h2 id="scene-title">{view.caseId === "pin-9-refusal" ? "Stationary arm" : "Conveyor station"}</h2><span className="signal-status">Controller response</span></div>
+        <div className="machine-figure">{view.caseId === "pin-9-refusal" ? <ArmSketch state={armState}/> : <ConveyorSketch/>}<span className="figure-caption">{view.caseId === "pin-9-refusal" ? "PIN-9 · three-axis service cell" : "Indexing conveyor · training cell"}</span></div>
         <div className="alarm-line"><span className="alarm-beacon" aria-hidden="true"/><div><b>{view.public.symptom.controllerCode}</b><span>{view.public.symptom.message}</span></div></div>
         <dl className="scene-facts"><div><dt>Command</dt><dd>{view.public.symptom.task}</dd></div><div><dt>Emergency stop</dt><dd><span className="state-live">●</span> {view.public.symptom.estop || "Clear"}</dd></div></dl>
         <details className="maintenance"><summary>Maintenance notes <span aria-hidden="true">+</span></summary><ul>{view.public.maintenanceLog.map((note) => <li key={note}>{note}</li>)}</ul></details>
@@ -280,7 +302,7 @@ function App() {
           <span className="hypothesis-id">{hypothesis.id}</span><span className="hypothesis-copy"><b>{hypothesis.title}</b><small>{hypothesis.detail}</small></span>
         </label>)}</div>
         <div className="probe-heading"><h3>Choose a diagnostic test</h3><span>6 tests · select one</span></div>
-        <div className="probe-list">{view.public.probes.map((candidate) => <button aria-pressed={selectedProbe === candidate.id} disabled={Boolean(view.skeptic)} className={`probe ${selectedProbe === candidate.id ? "active" : ""}`} key={candidate.id} onClick={() => { setSelectedProbe(candidate.id); setPredictions(view.proposals[candidate.id] ?? { H1: "", H2: "", H3: "", H4: "" }); }}>
+        <div className="probe-list">{view.public.probes.map((candidate) => <button aria-pressed={selectedProbe === candidate.id} disabled={Boolean(view.skeptic)} className={`probe ${selectedProbe === candidate.id ? "active" : ""}`} key={candidate.id} onClick={() => { setSelectedProbe(candidate.id); setPredictions(view.proposals[candidate.id] ?? Object.fromEntries(view.public.hypotheses.map(({ id }) => [id, ""]))); }}>
           <span className="probe-id">{candidate.id}</span><span className="probe-name">{candidate.title}</span><span className="probe-cost">{candidate.costMinutes}<small>min</small></span>
         </button>)}</div>
       </section>
@@ -288,8 +310,8 @@ function App() {
       <section className="panel prediction" data-testid="prediction-panel" aria-labelledby="forecast-title">
         <div className="panel-heading forecast-heading"><div><h2 id="forecast-title">Predict {probe?.id}'s result</h2></div><span className="forecast-cost">{probe?.costMinutes} min</span></div>
         <p className="probe-description">{probe?.description}</p>
-        <div className="forecast-matrix"><div className="matrix-head"><span>Cause</span><span>Expected result before the test</span></div>{view.public.hypotheses.map((hypothesis) => <label className="prediction-row" key={hypothesis.id}><b>{hypothesis.id}</b><select aria-label={`Prediction for ${hypothesis.id}`} value={predictions[hypothesis.id]} disabled={Boolean(view.proposals[selectedProbe])} onChange={(event) => setPredictions({ ...predictions, [hypothesis.id]: event.target.value })}><option value="">Choose an outcome</option>{probe?.outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabels[outcome] ?? outcome}</option>)}</select></label>)}</div>
-        <div className="prediction-actions"><button className="commit" disabled={actionPending || Object.values(predictions).some((value) => !value)} onClick={submitProposal}>Commit prediction table</button></div>
+        <div className="forecast-matrix"><div className="matrix-head"><span>Cause</span><span>Expected result before the test</span></div>{view.public.hypotheses.map((hypothesis) => <label className="prediction-row" key={hypothesis.id}><b>{hypothesis.id}</b><select aria-label={`Prediction for ${hypothesis.id}`} value={predictions[hypothesis.id]} disabled={Boolean(view.proposals[selectedProbe])} onChange={(event) => setPredictions((current) => ({ ...current, [hypothesis.id]: event.target.value }))}><option value="">Choose an outcome</option>{probe?.outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabels[outcome] ?? outcome}</option>)}</select></label>)}</div>
+        <div className="prediction-actions"><button className="commit" disabled={actionPending || view.public.hypotheses.some(({ id }) => !predictions[id])} onClick={submitProposal}>Commit prediction table</button></div>
         {view.skeptic && <div className="skeptic" role="status"><div className="skeptic-heading"><div><b>Skeptic check · {view.skeptic.probeId}</b><small>Review what this test can distinguish</small></div></div><p>{skepticRationale}</p><p className="forecast-lock-note">Your prediction is saved. Choose whether to switch tests or run this one.</p><details><summary>How to read this check</summary><p>Compare the predictions for the causes named above. If they match, this test will not tell those causes apart.</p></details><div className="skeptic-actions"><button className="revise" onClick={reviseForecast}>{selectedProbe === "P1" ? "Try P3 instead" : "Choose another test"}</button><button className="run-anyway" onClick={() => void act({ type: "skeptic-decision", decision: "run-anyway" })}>Run {selectedProbe} anyway</button></div></div>}
         {view.proposals[selectedProbe] && !view.skeptic && (selectedProbeObservation
           ? <div className="run-ready"><span><i aria-hidden="true"/> This probe has already run</span><a className="review-observation" href="#evidence" onClick={() => setSelectedEvidenceId(selectedProbeObservation.evidenceId)}>Review its observation in the evidence ledger</a></div>
@@ -311,8 +333,8 @@ function App() {
 
       {view.status === "active" && <details className="panel diagnosis" id="diagnosis" aria-labelledby="diagnosis-title" open={view.observations.length > 0}>
         <summary className="diagnosis-summary"><h2 id="diagnosis-title">Defend your diagnosis</h2><span className="diagnosis-summary-note">{view.observations.length ? "Use the observations to support each claim" : "Open when you are ready to commit"}</span></summary>
-        <div className="diagnosis-body"><div className="diagnosis-form"><label>Most likely cause<select value={diagnosis} onChange={(event) => setDiagnosis(event.target.value as HypothesisId)}>{view.public.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label><label>Confidence<input type="number" min="1" max="5" value={confidence} onChange={(event) => setConfidence(Number(event.target.value))}/><small>1 = tentative · 5 = certain</small></label><label className="justification">Justification<textarea value={justification} onChange={(event) => setJustification(event.target.value)} placeholder="Which observations support this cause? What rules out the alternatives?"/></label></div>
-          <div className="claims"><h3>Evidence claims</h3>{view.public.hypotheses.map((item) => <fieldset key={item.id}><legend><b>{item.id}</b> · {item.title}</legend><select aria-label={`Stance for ${item.id} claim`} value={claims[item.id].stance} onChange={(event) => updateClaim(item.id, { stance: event.target.value as Claim["stance"] })}><option value="supports">Supports</option><option value="rules_out">Rules out</option></select><select aria-label={`Evidence for ${item.id}`} value={claims[item.id].evidenceIds[0] ?? ""} onChange={(event) => updateClaim(item.id, { evidenceIds: event.target.value ? [event.target.value] : [] })}><option value="">Cite an observation</option>{view.observations.map((entry) => <option key={entry.evidenceId} value={entry.evidenceId}>{entry.probeId} · {outcomeLabels[entry.outcomeId]}</option>)}</select></fieldset>)}</div>
+        <div className="diagnosis-body"><div className="diagnosis-form"><label>Most likely cause<select value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)}>{view.public.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.id} · {item.title}</option>)}</select></label><label>Confidence<input type="number" min="1" max="5" value={confidence} onChange={(event) => setConfidence(Number(event.target.value))}/><small>1 = tentative · 5 = certain</small></label><label className="justification">Justification<textarea value={justification} onChange={(event) => setJustification(event.target.value)} placeholder="Which observations support this cause? What rules out the alternatives?"/></label></div>
+          <div className="claims"><h3>Evidence claims</h3>{view.public.hypotheses.map((item) => <fieldset key={item.id}><legend><b>{item.id}</b> · {item.title}</legend><select aria-label={`Stance for ${item.id} claim`} value={claims[item.id]!.stance} onChange={(event) => updateClaim(item.id, { stance: event.target.value as Claim["stance"] })}><option value="supports">Supports</option><option value="rules_out">Rules out</option></select><select aria-label={`Evidence for ${item.id}`} value={claims[item.id]!.evidenceIds[0] ?? ""} onChange={(event) => updateClaim(item.id, { evidenceIds: event.target.value ? [event.target.value] : [] })}><option value="">Cite an observation</option>{view.observations.map((entry) => <option key={entry.evidenceId} value={entry.evidenceId}>{entry.probeId} · {outcomeLabels[entry.outcomeId] ?? entry.outcomeId}</option>)}</select></fieldset>)}</div>
           <button className="lock" disabled={actionPending || !justification} onClick={lock}>Lock diagnosis and score</button>
         </div>
       </details>}
@@ -321,6 +343,7 @@ function App() {
         <div className="debrief-header"><div><h2 id="debrief-title">Case evaluated</h2><p>{view.diagnosis?.diagnosis} was {view.score.evidenceSupportedHypotheses.includes(view.diagnosis?.diagnosis ?? "H1") ? "supported by the evidence" : "not supported"}</p></div><div className="score-hero"><strong>{view.score.total}</strong><span>/ 100 points</span></div></div>
         <div className="rubric">{[["Diagnosis", view.score.diagnosis], ["Evidence sufficiency", view.score.evidenceSufficiency], ["Prediction accuracy", view.score.predictionAccuracy], ["Probe quality", view.score.probeQuality], ["Reasoning", view.score.reasoning]].map(([label, points]) => <div key={label as string}><span>{label}</span><b>{points}</b></div>)}</div>
         <p className="path-cost">Path cost <b>{view.score.actualCostMinutes} min</b><span>Best policy branch {view.score.bestPolicyBranchCostMinutes} min</span></p>
+        {view.debrief && <section className="deterministic-lessons" aria-label="Deterministic investigation lessons"><h3>What the evidence changed</h3>{view.debrief.probeLessons.map((lesson) => <p key={lesson.probeId}><b>{lesson.probeId}</b> · {lesson.lesson} Remaining: {lesson.remaining.join(", ") || "none"}.</p>)}{view.debrief.betterNextProbe && <p><b>Better first test:</b> {view.debrief.betterNextProbe} was the solver's first separating test for this case.</p>}<p><b>Transferable lesson:</b> {view.debrief.pathLesson}</p></section>}
         <div className="timelines"><div><h3>Learner beliefs</h3>{view.beliefTimeline.map((entry) => <p key={entry.revision}>Step {entry.revision}: {entry.beliefs.join(", ")}</p>)}</div><div><h3>Evidence-supported causes</h3>{view.evidenceTimeline.map((entry) => <p key={entry.evidenceId}>{entry.evidenceId.slice(0, 8)}: {entry.supported.join(", ") || "none"}</p>)}</div></div>
         <h3>Checked evidence claims</h3><div className="claim-checks">{view.score.claimChecks.map((check) => <p key={check.hypothesisId}><b>{check.hypothesisId}</b><span>{check.stance}</span><em className={check.valid ? "claim-valid" : "claim-invalid"}>{check.valid ? "Supported" : "Needs revision"}</em><span>{check.reason}</span></p>)}</div>
         <details className="forecast-archive"><summary>Full model forecast table</summary>{view.forecastTable && Object.entries(view.forecastTable).map(([probeId, row]) => <p key={probeId}><b>{probeId}</b> · {Object.entries(row).map(([id, outcome]) => `${id}: ${outcomeLabels[outcome] ?? outcome}`).join(" · ")}</p>)}</details>
@@ -330,6 +353,7 @@ function App() {
         <button className="replay" onClick={replay}>Start a fresh episode</button>
       </section>}
     </div>
+    <section className="local-tools" aria-label="Local practice controls"><label className="case-switch">Practice case<select value={selectedCaseId} onChange={(event) => setSelectedCaseId(event.target.value)}>{caseChoices.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select><button onClick={() => void start()} disabled={actionPending}>Start selected case</button></label><details className="history-panel"><summary>Local episode history ({history.length})</summary><p>Stored only in this local SQLite database until you delete an episode or remove the database file. Exports contain the learner-visible episode and event timeline.</p><button onClick={refreshHistory}>Refresh history</button>{history.map((episode) => <div className="history-row" key={episode.id}><span><b>{episode.title}</b> · {episode.status}</span><a href={`/api/episodes/${episode.id}/export`} download={`twinsleuth-${episode.id}.json`}>Export JSON</a><button onClick={() => void fetch(`/api/episodes/${episode.id}`, { method: "DELETE" }).then(() => refreshHistory())}>Delete</button></div>)}</details></section>
     <footer className="workspace-footer"><span>Training simulation · No physical equipment is connected</span><span>Model predictions stay hidden until a test runs</span></footer>
     {error && <div className="toast error" role="alert">{error}</div>}
   </main>;

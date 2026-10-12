@@ -1,26 +1,24 @@
-import { HYPOTHESES, PROBE_OUTCOMES } from "../case/catalog.js";
-import type { HypothesisId, OutcomeId, ProbeId } from "../case/catalog.js";
 import type { DiagnosticModel, Observation, PredictionSet } from "./model.js";
 
 export function consistentHypotheses(
   model: DiagnosticModel,
   observations: readonly Observation[],
-): HypothesisId[] {
+): string[] {
   return model.hypotheses
     .filter(({ id }) =>
-      observations.every(({ probeId, outcomeId }) => model.forecasts[probeId][id] === outcomeId),
+      observations.every(({ probeId, outcomeId }) => model.forecasts[probeId]![id] === outcomeId),
     )
     .map(({ id }) => id);
 }
 
 export function partitionByOutcome(
   model: DiagnosticModel,
-  probeId: ProbeId,
-  hypothesisIds: readonly HypothesisId[],
-): Map<OutcomeId, HypothesisId[]> {
-  const groups = new Map<OutcomeId, HypothesisId[]>();
+  probeId: string,
+  hypothesisIds: readonly string[],
+): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
   for (const hypothesisId of hypothesisIds) {
-    const outcomeId = model.forecasts[probeId][hypothesisId];
+    const outcomeId = model.forecasts[probeId]![hypothesisId]!;
     const group = groups.get(outcomeId) ?? [];
     group.push(hypothesisId);
     groups.set(outcomeId, group);
@@ -30,8 +28,8 @@ export function partitionByOutcome(
 
 export function separates(
   model: DiagnosticModel,
-  probeId: ProbeId,
-  hypothesisIds: readonly HypothesisId[],
+  probeId: string,
+  hypothesisIds: readonly string[],
 ): boolean {
   return hypothesisIds.length > 1 && partitionByOutcome(model, probeId, hypothesisIds).size > 1;
 }
@@ -39,18 +37,19 @@ export function separates(
 export type SkepticTrigger =
   | {
       readonly kind: "same-prediction";
-      readonly hypothesisIds: readonly HypothesisId[];
-      readonly predictedOutcome: OutcomeId;
+      readonly hypothesisIds: readonly string[];
+      readonly predictedOutcome: string;
     }
   | {
       readonly kind: "premature-elimination";
-      readonly hypothesisIds: readonly HypothesisId[];
+      readonly hypothesisIds: readonly string[];
     };
 
 export interface SkepticInput {
-  readonly possibleHypotheses: readonly HypothesisId[];
+  readonly hypothesisIds: readonly string[];
+  readonly possibleHypotheses: readonly string[];
   /** Derived by the server from rows the learner has already seen. */
-  readonly evidenceSupportedHypotheses: readonly HypothesisId[];
+  readonly evidenceSupportedHypotheses: readonly string[];
   readonly predictions: PredictionSet;
 }
 
@@ -64,9 +63,9 @@ export function detectSkepticTriggers(input: SkepticInput): SkepticTrigger[] {
 
   const currentlyPossible = possibleHypotheses.filter((id) => evidenceSupportedHypotheses.includes(id));
   if (currentlyPossible.length > 1) {
-    const groups = new Map<OutcomeId, HypothesisId[]>();
+    const groups = new Map<string, string[]>();
     for (const hypothesisId of currentlyPossible) {
-      const predictedOutcome = predictions[hypothesisId];
+      const predictedOutcome = predictions[hypothesisId]!;
       const group = groups.get(predictedOutcome) ?? [];
       group.push(hypothesisId);
       groups.set(predictedOutcome, group);
@@ -89,8 +88,7 @@ export function detectSkepticTriggers(input: SkepticInput): SkepticTrigger[] {
   }
 
   const supportedByEvidence = new Set(evidenceSupportedHypotheses);
-  const prematurelyEliminated = HYPOTHESES
-    .map(({ id }) => id)
+  const prematurelyEliminated = input.hypothesisIds
     .filter((id) => supportedByEvidence.has(id) && !possibleHypotheses.includes(id));
 
   if (prematurelyEliminated.length > 0) {
@@ -104,19 +102,20 @@ export function detectSkepticTriggers(input: SkepticInput): SkepticTrigger[] {
 }
 
 export function validatePredictions(
-  probeId: ProbeId,
+  model: DiagnosticModel,
+  probeId: string,
   predictions: Readonly<Record<string, string>>,
 ): string[] {
-  const expectedIds = HYPOTHESES.map(({ id }) => id);
+  const expectedIds = model.hypotheses.map(({ id }) => id);
   const receivedIds = Object.keys(predictions);
   const issues: string[] = [];
 
   const missing = expectedIds.filter((id) => !(id in predictions));
-  const unknown = receivedIds.filter((id) => !expectedIds.includes(id as HypothesisId));
+  const unknown = receivedIds.filter((id) => !expectedIds.includes(id));
   if (missing.length > 0) issues.push(`Predictions must include every cause; missing ${missing.join(", ")}.`);
   if (unknown.length > 0) issues.push(`Unknown cause IDs: ${unknown.join(", ")}.`);
 
-  const validOutcomes = PROBE_OUTCOMES[probeId] as readonly string[];
+  const validOutcomes = model.probes.find((probe) => probe.id === probeId)?.outcomes ?? [];
   for (const id of expectedIds) {
     const value = predictions[id];
     if (value !== undefined && !validOutcomes.includes(value)) {

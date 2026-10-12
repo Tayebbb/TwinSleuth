@@ -49,18 +49,37 @@ describe("HTTP API contract", () => {
     const unexpectedStartField = await app.inject({ method: "POST", url: "/api/episodes", payload: { truth: "H1" } });
     expect(unexpectedStartField.statusCode).toBe(400);
     expect(unexpectedStartField.json()).toEqual({ error: "Request is invalid." });
+    const created = allowedJson.json<{ id: string }>();
+    const forgedDelete = await app.inject({ method: "DELETE", url: `/api/episodes/${created.id}`, headers: { origin: "https://attacker.example" } });
+    expect(forgedDelete.statusCode).toBe(403);
+    expect((await app.inject({ method: "GET", url: `/api/episodes/${created.id}` })).statusCode).toBe(200);
     await app.close();
+  });
+
+  it("does not apply a PIN-9 demo truth to the Conveyor case", async () => {
+    const previousTruth = process.env.DEMO_TRUTH;
+    process.env.DEMO_TRUTH = "H1";
+    const app = appForTest();
+    try {
+      const response = await app.inject({ method: "POST", url: "/api/episodes", payload: { caseId: "conveyor-index-drift" } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ caseId: "conveyor-index-drift", status: "active" });
+    } finally {
+      if (previousTruth === undefined) delete process.env.DEMO_TRUTH;
+      else process.env.DEMO_TRUTH = previousTruth;
+      await app.close();
+    }
   });
 
   it("limits episode creation bursts from one client", async () => {
     const app = appForTest();
     const statuses: number[] = [];
-    for (let index = 0; index < 21; index += 1) {
+    for (let index = 0; index < 61; index += 1) {
       const response = await app.inject({ method: "POST", url: "/api/episodes", payload: {} });
       statuses.push(response.statusCode);
     }
-    expect(statuses.slice(0, 20).every((status) => status === 200)).toBe(true);
-    expect(statuses[20]).toBe(429);
+    expect(statuses.slice(0, 60).every((status) => status === 200)).toBe(true);
+    expect(statuses[60]).toBe(429);
     await app.close();
   });
 
