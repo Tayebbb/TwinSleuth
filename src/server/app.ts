@@ -13,7 +13,13 @@ function publicError(error: unknown): { code: number; message: string } {
 
 export function buildApp(service = new EpisodeService()) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
-  const allowedOrigin = process.env.UI_ORIGIN ?? "http://127.0.0.1:5173";
+  const allowedOrigins = new Set([
+    process.env.UI_ORIGIN,
+    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
+    ...(process.env.NODE_ENV === "production" ? [] : ["http://127.0.0.1:5173"]),
+  ].filter((origin): origin is string => Boolean(origin)));
+  const allowOrigin = (origin: string | undefined) => !origin || allowedOrigins.has(origin);
   const episodeStartWindows = new Map<string, { startedAt: number; count: number }>();
   const actionWindows = new Map<string, { startedAt: number; count: number }>();
   const withinRateLimit = (windows: Map<string, { startedAt: number; count: number }>, key: string, limit: number): boolean => {
@@ -37,11 +43,11 @@ export function buildApp(service = new EpisodeService()) {
     if (code.startsWith("FST_ERR_CTP_")) return reply.code(400).send({ error: "Request is invalid." });
     return reply.code(500).send({ error: "TwinSleuth could not complete that request." });
   });
-  void app.register(cors, { origin: (origin, callback) => callback(null, !origin || origin === allowedOrigin ? allowedOrigin : false) });
+  void app.register(cors, { origin: (origin, callback) => callback(null, allowOrigin(origin) ? origin ?? true : false) });
   app.addHook("preHandler", async (request, reply) => {
     if (request.method !== "POST" && request.method !== "DELETE") return;
     const origin = request.headers.origin;
-    if (origin && origin !== allowedOrigin) return reply.code(403).send({ error: "Origin is not allowed." });
+    if (!allowOrigin(origin)) return reply.code(403).send({ error: "Origin is not allowed." });
     if (request.method !== "POST") return;
     const contentType = request.headers["content-type"] ?? "";
     if (!/^application\/json(?:\s*;|$)/i.test(contentType)) return reply.code(415).send({ error: "Content-Type must be application/json." });
@@ -63,36 +69,36 @@ export function buildApp(service = new EpisodeService()) {
       const demoTruth = process.env.DEMO_TRUTH;
       const definition = getCase(caseId)!;
       const truth = definition.model.hypotheses.some(({ id }) => id === demoTruth) ? demoTruth : undefined;
-      return service.start(caseId, truth);
+      return await service.start(caseId, truth);
     } catch (error) {
       const result = publicError(error);
       return reply.code(result.code).send({ error: result.message });
     }
   });
   app.get("/api/episodes/:id", async (request, reply) => {
-    try { return service.get((request.params as { id: string }).id); }
+    try { return await service.get((request.params as { id: string }).id); }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
   app.get("/api/episodes/:id/replay", async (request, reply) => {
-    try { return service.replay((request.params as { id: string }).id); }
+    try { return await service.replay((request.params as { id: string }).id); }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
   app.get("/api/episodes/:id/export", async (request, reply) => {
-    try { return service.export((request.params as { id: string }).id); }
+    try { return await service.export((request.params as { id: string }).id); }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
   app.delete("/api/episodes/:id", async (request, reply) => {
-    try { service.delete((request.params as { id: string }).id); return reply.code(204).send(); }
+    try { await service.delete((request.params as { id: string }).id); return reply.code(204).send(); }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
   app.post("/api/episodes/:id/actions", async (request, reply) => {
     try {
       const id = (request.params as { id: string }).id;
       const raw = request.body as { action?: { type?: string; probeId?: string } };
-      if ((raw.action?.type === "run" || raw.action?.type === "propose") && raw.action.probeId && !service.get(id).public.probes.some((probe) => probe.id === raw.action?.probeId)) {
+      if ((raw.action?.type === "run" || raw.action?.type === "propose") && raw.action.probeId && !(await service.get(id)).public.probes.some((probe) => probe.id === raw.action?.probeId)) {
         return reply.code(400).send({ error: "Request is invalid." });
       }
-      return service.act(id, request.body);
+      return await service.act(id, request.body);
     }
     catch (error) {
       const result = publicError(error);
