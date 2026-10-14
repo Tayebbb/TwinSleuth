@@ -41,13 +41,13 @@ test("capture deterministic submission states", async ({ page }) => {
   // Full-page captures otherwise repeat the sticky navigation bar at every viewport boundary.
   await page.addStyleTag({ content: ".global-nav { position: static !important; }" });
   await caption(page, "TwinSleuth is a simulated practice lab for evidence-based fault diagnosis.");
-  await page.screenshot({ path: `${screenshots}/01-laptop-bench.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshots}/01-laptop-bench.png` });
 
   for (const id of ["H1", "H2", "H3", "H4"]) await page.getByLabel(`Prediction for ${id}`).selectOption("refused");
   await page.getByRole("button", { name: "Commit prediction table" }).click();
   await wait(page);
   await caption(page, "Predict the result for every possible cause before running a probe.");
-  await page.screenshot({ path: `${screenshots}/02-skeptic-challenge.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshots}/02-skeptic-challenge.png` });
   await page.getByRole("button", { name: "Try P3 instead" }).click();
 
   const p3 = { H1: "completed", H2: "refused", H3: "refused", H4: "completed" };
@@ -56,7 +56,7 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.getByRole("button", { name: /Run P3/ }).click();
   await wait(page);
   await caption(page, "Tests consume a 30-minute simulated budget; the server reveals only observations after a run.");
-  await page.screenshot({ path: `${screenshots}/03-p3-observation.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshots}/03-p3-observation.png` });
 
   await page.getByRole("button", { name: /P4/ }).click();
   const p4 = { H1: "stopped-at-95", H2: "full-range", H3: "full-range", H4: "full-range" };
@@ -65,7 +65,7 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.getByRole("button", { name: /Run P4/ }).click();
   await wait(page);
   await caption(page, "P4 narrows the remaining causes with a second, targeted observation.");
-  await page.screenshot({ path: `${screenshots}/04-j2-stopped-95.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshots}/04-j2-stopped-95.png` });
 
   await page.getByLabel("Justification").fill("P4 stopped at 95 degrees, supporting the tightened J2 limit.");
   await page.getByLabel("Evidence for H1").selectOption({ index: 2 });
@@ -75,7 +75,8 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.getByRole("button", { name: "Lock diagnosis and score" }).click();
   await expect(page.getByRole("heading", { name: "Examiner notes" }).locator("xpath=following-sibling::p").first()).toContainText(/evidence claims checked/, { timeout: 15_000 });
   await caption(page, "The deterministic debrief checks evidence claims, scores the diagnosis, and compares the route with the model policy.");
-  await page.screenshot({ path: `${screenshots}/05-debrief.png`, fullPage: true });
+  await page.getByRole("heading", { name: "Case evaluated" }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${screenshots}/05-debrief.png` });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
@@ -88,5 +89,5 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.getByRole("button", { name: "Start selected case" }).click();
   await wait(page);
   await caption(page, "A second fictional case practices diagnosis of conveyor index drift.");
-  await page.screenshot({ path: `${screenshots}/07-conveyor-case.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshots}/07-conveyor-case.png` });
 });

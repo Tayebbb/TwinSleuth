@@ -10,7 +10,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     viewport: { width: 1280, height: 800 },
     trace: "retain-on-failure",
-    video: process.env.CAPTURE_DEMO ? "on" : "off",
+    video: "off",
   },
   webServer: {
     command: "npm run dev",

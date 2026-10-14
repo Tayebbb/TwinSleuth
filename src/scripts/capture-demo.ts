@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -14,22 +14,5 @@ const result = spawnSync(process.execPath, [playwrightCli, "test", "e2e/capture/
 });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-
-function findVideo(directory: string): string | undefined {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      const nested = findVideo(path);
-      if (nested) return nested;
-    } else if (entry.name.endsWith(".webm")) {
-      return path;
-    }
-  }
-  return undefined;
-}
-
-const video = findVideo(captureDir);
-if (!video) throw new Error("Playwright completed without producing a demo video.");
-copyFileSync(video, join(process.cwd(), "submission", "twinsleuth-demo.webm"));
 rmSync(captureDir, { recursive: true, force: true });
-console.log("Saved submission/twinsleuth-demo.webm and current screenshots.");
+console.log("Saved current submission screenshots.");

@@ -145,4 +145,4 @@ npm run test:e2e
 npm run capture:demo
 ```
 
-`npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and a short local preview at `submission/twinsleuth-demo.webm`. The full narrated submission video is [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4).
+`npm run capture:demo` regenerates the seven reviewer screenshots in `submission/screenshots/`. The full narrated submission video is [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4).

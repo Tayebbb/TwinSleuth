@@ -1,57 +1,100 @@
 # TwinSleuth
 
-TwinSleuth is a local browser practice lab with two simulated cases: **PIN-9 Refusal** and **Conveyor Index Drift**. The learner predicts what each probe will show, chooses tests under a 30-minute budget, responds to a Skeptic question, and defends a diagnosis with checked evidence claims.
+### Practice fault diagnosis by predicting first, testing under a budget, and defending a diagnosis with evidence.
 
-This is simulated practice, not a digital twin, industrial safety system, or validated learning intervention. Hidden truth, observations, costs, and scores are server-owned. The browser receives only public case data and rows for probes that have run.
+[**Watch the 5-minute demo**](https://youtu.be/elNEaO97DTY) · [**Open the Devpost submission**](https://devpost.com/software/twinsleuth) · [Learner guide](USER-GUIDE.md)
 
-For a learner-facing walkthrough of the case, controls, scoring, and local setup, see [USER-GUIDE.md](USER-GUIDE.md).
+TwinSleuth is a local browser lab with two fictional maintenance cases. It gives technical learners a place to practice choosing tests and reasoning from evidence. It is not a digital twin, an industrial control system, or a validated training intervention; it does not connect to real equipment.
 
-## Project docs
+![TwinSleuth practice bench showing causes, test predictions, and the evidence workflow](submission/screenshots/01-laptop-bench.png)
 
-- [Product brief](PRODUCT.md): shipped scope, constraints, and evidence.
-- [Design system](DESIGN.md): current UI principles; CSS values live in `src/web/styles/tokens.css` and `app.css`.
-- [Technology audit](PROJECT_TECHNOLOGY_AUDIT.md): architecture, risks, recommendations, and follow-up.
-- [Research](research/): model/data decisions and validation protocols.
-- [Audit records](audit/): historical findings, decisions, and regression evidence.
-- [Submission materials](submission/): demo, screenshots, video, and remaining submission steps.
+## What a learner does
 
-For the submitted Devpost page, demo link, and verification evidence, see [submission/HACKATHON-CHECKLIST.md](submission/HACKATHON-CHECKLIST.md).
+The learner has a simulated 30-minute budget. Before a probe runs, they record what each possible cause predicts. An uninformative forecast can trigger the deterministic Skeptic. After the test, the learner compares predictions with the observation, cites evidence for each cause, and submits a diagnosis. A deterministic debrief checks the claims and shows the score breakdown.
+
+```mermaid
+flowchart LR
+    A[Choose a fictional case] --> B[Predict each cause's test result]
+    B --> C[Commit forecast]
+    C --> D{Can this test separate causes?}
+    D -- No --> E[Skeptic explains the ambiguity]
+    E --> F[Revise the forecast or run anyway]
+    D -- Yes --> G[Run probe and spend simulated time]
+    F --> G
+    G --> H[Compare prediction with observation]
+    H --> I[Cite evidence and defend diagnosis]
+    I --> J[Deterministic score and debrief]
+```
+
+## Cases and evidence
+
+| Case | Practice focus | What the demo shows |
+|---|---|---|
+| **PIN-9 Refusal** | Separate four possible causes with six probes. | A repeated test is uninformative; P3 and P4 narrow the evidence to H1. |
+| **Conveyor Index Drift** | Separate four possible causes with five probes. | A second, independent case with its own predictions and diagnostic tests. |
+
+The submitted walkthrough follows the fixed PIN-9 path. Screenshots below show the Skeptic challenge, the checked debrief, and the second case.
+
+![Skeptic explains why the first forecast cannot narrow the causes](submission/screenshots/02-skeptic-challenge.png)
+
+![Debrief score breakdown and evidence claims](submission/screenshots/05-debrief.png)
+
+![Conveyor Index Drift practice case](submission/screenshots/07-conveyor-case.png)
+
+## How it is built
+
+The server keeps the selected fault and unrun forecasts private. Deterministic code owns probe outcomes, evidence validity, the remaining candidate set, budget, diagnosis, and score. SQLite stores the event ledger used to reconstruct an episode. The browser only receives public case data, committed forecasts, and observations after a probe has run.
+
+```mermaid
+flowchart LR
+    Learner --> UI[React + TypeScript]
+    UI -->|learner actions| API[Fastify API]
+    API --> Episode[Episode service]
+    Episode --> Engine[Deterministic engine]
+    Episode --> Models[Private case models]
+    Episode --> Ledger[(SQLite event ledger)]
+    Episode -->|public projection| UI
+    Episode -->|after diagnosis| Examiner[Optional Gemini Examiner]
+    Examiner -->|validated advisory text only| UI
+```
+
+The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional post-diagnosis Examiner can explain checked claims, but its output cannot change the truth, diagnosis, score, or episode state.
 
 ## Run locally
 
-Requires Node.js 22+.
+Requires **Node.js 22 or newer**. There is no hosted interactive instance.
 
 ```sh
 npm ci
+npm run dev
+```
+
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The local API runs on port 5174. No provider key is needed for the practice loop.
+
+Optional Examiner feedback uses `GEMINI_API_KEY`. Copy `.env.example` to `.env` and set the key there; it stays server-side and is ignored by Git.
+
+## Verify the project
+
+```sh
 npm run validate:case
 npm run typecheck
 npm test
 npm run build
 npm run test:e2e
 npm run capture:demo
-npm run dev
 ```
 
-To enable the learner-facing Gemini feedback, copy `.env.example` to `.env`, add your Gemini key as `GEMINI_API_KEY`, then run `npm run dev`. The `.env` file is ignored by Git and never sent to the browser.
+The checks cover case distinguishability, scoring and event replay, privacy boundaries, the no-key learner journey, responsive behavior, keyboard use, and accessibility. Demo capture regenerates the seven screenshots in `submission/screenshots/`.
 
-`npm run dev` starts the Fastify API at `http://127.0.0.1:5174` and the Vite browser at `http://127.0.0.1:5173`. The SQLite ledger is written to `twinsleuth.sqlite`; set `TWINSLEUTH_DB` to choose another path. Open the Vite URL in a browser.
+## Navigate the repository
 
-`npm run test:e2e` starts the local API and Vite server with Playwright, then exercises the no-key P1 challenge through the P3/P4 observation loop and debrief in Chromium.
+| Path | Purpose |
+|---|---|
+| `src/engine/` | Deterministic diagnosis, policy, and scoring. |
+| `src/server/` | API, episode ledger, private case models, and optional Examiner. |
+| `src/web/` | Learner interface and design tokens. |
+| `e2e/` | Browser, privacy, accessibility, and screenshot-capture coverage. |
+| `submission/` | Submitted MP4, captions, screenshots, and reviewer brief. |
+| `USER-GUIDE.md` | Detailed case walkthrough and control reference. |
 
-The browser suite also verifies 1280×800 first-viewport fit, phone overflow, axe accessibility, keyboard operation, visible focus, 44px targets, and observation-specific arm states. `npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and a short local preview at `submission/twinsleuth-demo.webm`. The narrated, five-minute submission video is [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4); see [submission/SUBMISSION.md](submission/SUBMISSION.md) for the public video link.
-
-The local API rejects cross-origin and non-JSON mutations, limits episode starts to 60 per client per minute, and caps each episode at 64 actions. The browser offers local episode history, JSON export, and deletion. Deletion removes the episode, secret, event, and idempotency rows from this SQLite database; copies you exported and any separately managed backup remain your responsibility. SQLite episodes otherwise persist until deleted or the database file is removed. There is no automatic retention or multi-user session ownership.
-
-### Deployment boundary
-
-This is a single-process local-MVP design, not a public multi-user service. Before public exposure, put rate limits in shared storage behind a trusted proxy; choose a database/deployment topology that supports concurrent writers and migrations; authenticate every request and scope episode/secrets to a tenant or user; and define retention, backup, and deletion controls. Do not rely on the in-process limiter or unauthenticated episode IDs across replicas.
-
-The Skeptic is deterministic so it can never disclose a diagnosis or steer a probe from hidden state. The post-evaluation Examiner may use Gemini when `GEMINI_API_KEY` is set. Gemini defaults to `gemini-3.5-flash-lite`; set `GEMINI_MODEL` to choose another supported Gemini model. Keep the key server-side. Each Examiner attempt times out after 20 seconds; malformed, unavailable, or rejected output falls back to deterministic feedback after at most two attempts. Learner explanations are treated as untrusted input; Examiner feedback remains advisory and cannot change score, truth, or state.
-
-See `.env.example` for the required variables. The local API accepts only the Vite origin by default; set `UI_ORIGIN` explicitly if the UI is served from another origin.
-
-## Case and demo path
-
-Start with the stationary arm and `SAFETY_REJECT`, propose P1 and predict `Refused` for all four causes, answer the Skeptic, and choose **Try P3 instead**. The balanced P3 forecast runs directly without another Skeptic detour. Continue with P4 when P3 leaves H1/H4, then submit H1 and four structured evidence claims. The debrief shows the deterministic rubric, evidence rows, path cost versus the exact policy branch, and the agent trace. P1 is challenged but not run in this demo path.
-
-The private forecast matrices live only under `src/server/case-model/`. The React bundle imports no private model. After scoring, the deterministic debrief pairs each observed result with the model-consistent remaining causes, probe informativeness, the exact policy benchmark, and a transferable investigation lesson. These are properties of the simulation model, not real-world operating instructions or validated educational outcomes.
+See [submission/SUBMISSION.md](submission/SUBMISSION.md) for the demo, Devpost link, and screenshot set. The five-minute demo is also included at [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4).
