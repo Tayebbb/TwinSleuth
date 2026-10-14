@@ -1,7 +1,8 @@
 # TwinSleuth — Project Technology Audit
 
-**Audit date:** 2026-10-12  
-**Repository revision:** `4f90dec5fdd46021f4bd75da6e645f080970ccf9` (`main`)  
+**Audit date:** 2026-10-12
+
+**Repository revision:** `4f90dec5fdd46021f4bd75da6e645f080970ccf9` (`main`)
 **Scope:** project and ecosystem investigation. No application source, configuration, dependencies, database, or Git history were changed. `npm run build` regenerated the ignored `dist/` build output as required by the repository verification gate; this report is the only new non-generated project document.
 
 **Status update (2026-10-15):** The project was submitted to Next Byte Hacks V5. The current submission copy, video link, and remaining event-page discrepancies are tracked in [submission/HACKATHON-CHECKLIST.md](submission/HACKATHON-CHECKLIST.md); this audit remains a point-in-time record of the repository and event fit as of October 12.

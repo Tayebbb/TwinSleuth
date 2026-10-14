@@ -34,4 +34,3 @@ The first setup downloads the 82M open-weights English model and voice pack (abo
 ## Scope
 
 This is a screen-recorded walkthrough of a local practice simulator. The arm and readings are authored simulation data. No physical equipment is connected, and the video does not present the product as a digital twin, industrial safety system, or validated learning intervention. The duration conflict on the event pages and provenance checks are documented in `verification-report.md`.
-

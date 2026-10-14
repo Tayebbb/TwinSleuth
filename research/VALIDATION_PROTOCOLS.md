@@ -1,6 +1,6 @@
 # Case, Learner, and Examiner Validation Protocols
 
-**Prepared:** 2026-10-12  
+**Prepared:** 2026-10-12
 **Status:** desk review and protocols only. No qualified maintenance instructor, learner participants, or real Gemini calls were used. This file records the work that can be completed locally without claiming expert sign-off or learning outcomes.
 
 ## 1. Case desk review
