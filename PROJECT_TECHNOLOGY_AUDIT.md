@@ -339,4 +339,3 @@ Implemented after the audit; this section supersedes earlier findings where note
 - `npm run validate:case`, `npm run typecheck`, `npm test` (64 tests), `npm run build`, and `npm run test:e2e` (14 tests) pass. End-to-end output includes expected Vite allow-list warnings from tests that probe blocked paths.
 - Final clean install completed successfully (166 packages added, zero vulnerabilities reported). `npm run capture:demo` passed and refreshed the submission screenshots and WebM. Build output under ignored `dist/` may have been regenerated.
 - No instructor review, learner pilot, real Gemini request, or human rating was performed. LLM tests use stubs; the human validation protocols are prepared, not executed.
-
