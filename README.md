@@ -6,7 +6,16 @@ This is simulated practice, not a digital twin, industrial safety system, or val
 
 For a learner-facing walkthrough of the case, controls, scoring, and local setup, see [USER-GUIDE.md](USER-GUIDE.md).
 
-For the evidence-backed submission status and outstanding Devpost steps, see [submission/HACKATHON-CHECKLIST.md](submission/HACKATHON-CHECKLIST.md).
+## Project docs
+
+- [Product brief](PRODUCT.md): shipped scope, constraints, and evidence.
+- [Design system](DESIGN.md): current UI principles; CSS values live in `src/web/styles/tokens.css` and `app.css`.
+- [Technology audit](PROJECT_TECHNOLOGY_AUDIT.md): architecture, risks, recommendations, and follow-up.
+- [Research](research/): model/data decisions and validation protocols.
+- [Audit records](audit/): historical findings, decisions, and regression evidence.
+- [Submission materials](submission/): demo, screenshots, video, and remaining submission steps.
+
+For the submitted Devpost page, demo link, and verification evidence, see [submission/HACKATHON-CHECKLIST.md](submission/HACKATHON-CHECKLIST.md).
 
 ## Run locally
 
@@ -29,7 +38,7 @@ To enable the learner-facing Gemini feedback, copy `.env.example` to `.env`, add
 
 `npm run test:e2e` starts the local API and Vite server with Playwright, then exercises the no-key P1 challenge through the P3/P4 observation loop and debrief in Chromium.
 
-The browser suite also verifies 1280×800 first-viewport fit, phone overflow, axe accessibility, keyboard operation, visible focus, 44px targets, and observation-specific arm states. `npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and the local `submission/twinsleuth-demo.webm`.
+The browser suite also verifies 1280×800 first-viewport fit, phone overflow, axe accessibility, keyboard operation, visible focus, 44px targets, and observation-specific arm states. `npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and a short local preview at `submission/twinsleuth-demo.webm`. The narrated, five-minute submission video is [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4); see [submission/SUBMISSION.md](submission/SUBMISSION.md) for the public video link.
 
 The local API rejects cross-origin and non-JSON mutations, limits episode starts to 60 per client per minute, and caps each episode at 64 actions. The browser offers local episode history, JSON export, and deletion. Deletion removes the episode, secret, event, and idempotency rows from this SQLite database; copies you exported and any separately managed backup remain your responsibility. SQLite episodes otherwise persist until deleted or the database file is removed. There is no automatic retention or multi-user session ownership.
 

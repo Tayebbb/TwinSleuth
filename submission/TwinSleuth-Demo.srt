@@ -1,0 +1,315 @@
+﻿1
+00:00:00,065 --> 00:00:03,640
+TwinSleuth is a browser-based
+troubleshooting simulator for maintenance
+
+2
+00:00:03,690 --> 00:00:08,365
+learners. It teaches you to predict, test
+within a budget, compare evidence,
+
+3
+00:00:08,415 --> 00:00:10,624
+and defend a diagnosis instead of
+guessing.
+
+4
+00:00:12,044 --> 00:00:16,744
+This case begins with a simulated robot
+arm that refuses a PIN command
+
+5
+00:00:16,794 --> 00:00:21,094
+before motion. The learner sees four
+possible causes and thirty maintenance
+
+6
+00:00:21,144 --> 00:00:25,369
+minutes. Each possible cause points to a
+different subsystem and a testable
+
+7
+00:00:25,444 --> 00:00:30,603
+failure mode. The exercise rewards a
+testable explanation, not a fast guess.
+
+8
+00:00:35,048 --> 00:00:39,773
+I begin with P1, repeating the same PIN
+motion, and commit a forecast for
+
+9
+00:00:39,823 --> 00:00:44,423
+each cause before observing anything. Here
+every row predicts refusal.
+
+10
+00:00:44,473 --> 00:00:47,873
+Because that result would not distinguish
+the causes, the deterministic
+
+11
+00:00:47,923 --> 00:00:52,498
+Skeptic asks me to reconsider the test. It
+uses my submitted forecast and
+
+12
+00:00:52,548 --> 00:00:55,698
+current public state; it does not need the
+hidden fault to raise that
+
+13
+00:00:55,748 --> 00:01:00,288
+question. I switch to P3 and predict that
+key three completes under H1 and
+
+14
+00:01:00,338 --> 00:01:06,088
+H4, but is refused under H2 and H3. This
+splits the four explanations into
+
+15
+00:01:06,163 --> 00:01:10,038
+two groups. Only after I commit those
+predictions do I run the five-minute
+
+16
+00:01:10,088 --> 00:01:15,769
+test. The observed completion leaves two
+model-consistent causes, H1 and H4.
+
+17
+00:01:16,092 --> 00:01:21,117
+Now I test the remaining ambiguity with
+P4, the slow J2 range check. I
+
+18
+00:01:21,167 --> 00:01:25,917
+forecast a stop at 95 degrees for H1 and
+full range for the alternatives,
+
+19
+00:01:25,967 --> 00:01:30,942
+then run it for ten simulated minutes. The
+observation is a J2 stop at 95
+
+20
+00:01:30,967 --> 00:01:35,867
+degrees. The cause list narrows to H1. The
+ledger pairs each forecast with
+
+21
+00:01:35,892 --> 00:01:40,124
+its observation, so I can check what
+changed. A test is useful when possible
+
+22
+00:01:40,174 --> 00:01:44,649
+causes predict different outcomes. P1
+spent five minutes without separating
+
+23
+00:01:44,699 --> 00:01:49,849
+causes. P3 split the four causes into two
+pairs; P4 distinguished the two
+
+24
+00:01:49,899 --> 00:01:55,124
+survivors. This is the skill TwinSleuth
+practices: choose informative tests,
+
+25
+00:01:55,174 --> 00:01:58,723
+update from evidence, and explain why one
+diagnosis remains.
+
+26
+00:02:10,069 --> 00:02:14,219
+I lock H1 and cite observations for each
+of the four causes. Getting the
+
+27
+00:02:14,269 --> 00:02:18,744
+diagnosis right is not enough; I have to
+show evidence for each claim. The
+
+28
+00:02:18,794 --> 00:02:23,194
+debrief checks those claims instead of
+accepting the explanation as fact. It
+
+29
+00:02:23,244 --> 00:02:27,069
+shows the five score categories
+separately, the remaining cause after each
+
+30
+00:02:27,119 --> 00:02:31,000
+test, and the path cost. Each claim points
+to an event and says whether it
+
+31
+00:02:31,050 --> 00:02:35,800
+supports or contradicts a cause. The
+detail rows show each observation ID,
+
+32
+00:02:35,850 --> 00:02:40,605
+learner belief, and evaluator status,
+making every claim traceable. P4's
+
+33
+00:02:40,655 --> 00:02:47,848
+stop supports H1 and contradicts H2, H3,
+and H4; P3 left H1 and H4 in play.
+
+34
+00:02:48,167 --> 00:02:52,967
+Optional Examiner notes cannot change the
+rubric score. Here, the two tests
+
+35
+00:02:53,017 --> 00:02:56,692
+cost fifteen minutes, matching the best
+feasible policy branch for this
+
+36
+00:02:56,767 --> 00:03:01,262
+simulated fault. That comparison is
+specific to this authored case, not a
+
+37
+00:03:01,362 --> 00:03:03,336
+real-world maintenance recommendation.
+
+38
+00:03:05,044 --> 00:03:09,444
+Behind the screen, deterministic rules
+keep the exercise fair. The browser
+
+39
+00:03:09,494 --> 00:03:13,469
+sends a forecast or test choice to the
+service. The service enforces the run
+
+40
+00:03:13,519 --> 00:03:17,794
+rules and time budget; the deterministic
+engine uses the private case model
+
+41
+00:03:17,869 --> 00:03:22,094
+to calculate the outcome and remaining
+causes. You see evidence only after
+
+42
+00:03:22,144 --> 00:03:26,619
+running a test. The event ledger records
+forecasts and outcomes in order, so
+
+43
+00:03:26,644 --> 00:03:30,397
+the session can be replayed and checked.
+Think of the rules as a referee and
+
+44
+00:03:30,422 --> 00:03:33,997
+the ledger as an instant replay: they show
+what you predicted, which test
+
+45
+00:03:34,022 --> 00:03:37,747
+you chose, and what evidence changed your
+mind. The Skeptic sees your
+
+46
+00:03:37,797 --> 00:03:41,947
+predictions and public information. It can
+challenge a weak test but cannot
+
+47
+00:03:41,997 --> 00:03:46,647
+reveal the answer. After diagnosis,
+optional Examiner feedback acts like a
+
+48
+00:03:46,647 --> 00:03:50,878
+coach: it explains your evidence claims
+but never changes your score. This
+
+49
+00:03:50,928 --> 00:03:55,328
+keeps the learner's reasoning—not AI
+guesswork—at the center. The local
+
+50
+00:03:55,378 --> 00:03:59,428
+practice still works without an AI
+provider. Reviewing the replay shows
+
+51
+00:03:59,478 --> 00:04:02,978
+whether your tests separated causes and
+how new evidence changed your
+
+52
+00:04:03,028 --> 00:04:07,753
+diagnosis. The experience is a simulator;
+it is not connected to real
+
+53
+00:04:07,803 --> 00:04:08,284
+equipment.
+
+54
+00:04:10,044 --> 00:04:13,744
+Why does the budget matter? It trains you
+to trade time for information:
+
+55
+00:04:13,819 --> 00:04:16,819
+choose tests that separate causes and
+avoid spending minutes on
+
+56
+00:04:16,869 --> 00:04:21,569
+uninformative probes. In this local build,
+case validation, sixty-four unit
+
+57
+00:04:21,619 --> 00:04:25,764
+tests, and fourteen browser tests passed.
+Accessibility checks include
+
+58
+00:04:25,814 --> 00:04:30,064
+keyboard and responsive use. That gives
+confidence in the simulator, not
+
+59
+00:04:30,139 --> 00:04:30,891
+real equipment.
+
+60
+00:04:40,065 --> 00:04:43,490
+TwinSleuth is a local troubleshooting
+practice website for maintenance
+
+61
+00:04:43,540 --> 00:04:48,140
+learners. It teaches you to predict first,
+spend tests deliberately, compare
+
+62
+00:04:48,190 --> 00:04:52,365
+evidence, and defend a diagnosis. The goal
+is to improve how you investigate
+
+63
+00:04:52,365 --> 00:04:57,865
+a fault, not memorize an answer. This is a
+simulator; no real equipment is
+
+64
+00:04:57,915 --> 00:04:58,453
+connected.

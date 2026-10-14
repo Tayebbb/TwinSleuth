@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">TwinSleuth episode data flow</title>
+  <desc id="desc">The browser sends learner actions to the Fastify service. The service applies deterministic rules and appends events to SQLite. The deterministic engine uses a private case model to compute outcomes. Only public episode state and observations for run probes return to the browser. The Skeptic uses public state and the submitted forecast. Optional Examiner feedback happens after diagnosis lock and cannot alter score or state.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#36c9b0"/></marker>
+    <marker id="soft-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0 10 5 0 10z" fill="#b6cbd1"/></marker>
+    <style>
+      .bg{fill:#081821}.grid{fill:url(#grid);opacity:.28}.title{font:700 48px 'Segoe UI',sans-serif;fill:#f1f6f4}.sub{font:400 24px 'Segoe UI',sans-serif;fill:#a8bbc1}.box{fill:#102630;stroke:#38515b;stroke-width:2}.server{fill:#12322f;stroke:#36c9b0;stroke-width:3}.private{fill:#2c2821;stroke:#d59b42;stroke-width:2}.head{font:700 27px 'Segoe UI',sans-serif;fill:#eff6f3}.body{font:400 20px 'Segoe UI',sans-serif;fill:#c2d0d2}.tiny{font:600 16px 'Segoe UI',sans-serif;fill:#7f969d;letter-spacing:2px}.arrow{stroke:#36c9b0;stroke-width:4;fill:none;marker-end:url(#arrow)}.soft{stroke:#b6cbd1;stroke-width:3;fill:none;marker-end:url(#soft-arrow)}.dash{stroke:#d59b42;stroke-width:3;stroke-dasharray:10 10;fill:none;marker-end:url(#soft-arrow)}
+    </style>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#35515b" stroke-width="1"/></pattern>
+  </defs>
+  <rect class="bg" width="1920" height="1080"/><rect class="grid" width="1920" height="1080"/>
+  <text x="120" y="100" class="tiny">TWIN SLEUTH / LOCAL EPISODE FLOW</text>
+  <text x="120" y="164" class="title">Actions become evidence. The server keeps the truth.</text>
+  <text x="120" y="210" class="sub">The browser sees an observation only after its probe has run.</text>
+  <rect x="120" y="330" width="330" height="210" rx="18" class="box"/>
+  <text x="160" y="390" class="tiny">UNTRUSTED CLIENT</text><text x="160" y="440" class="head">Learner browser</text>
+  <text x="160" y="480" class="body">Forecast · choose probe</text><text x="160" y="512" class="body">Diagnosis · evidence claims</text>
+  <rect x="600" y="295" width="420" height="280" rx="18" class="server"/>
+  <text x="645" y="355" class="tiny">FASTIFY / EPISODE SERVICE</text><text x="645" y="412" class="head">Validate and apply</text>
+  <text x="645" y="458" class="body">Action rules · budget · state</text><text x="645" y="496" class="body">Public projection · event append</text>
+  <rect x="1170" y="295" width="320" height="280" rx="18" class="box"/>
+  <text x="1210" y="355" class="tiny">DETERMINISTIC CORE</text><text x="1210" y="412" class="head">Rules and scoring</text>
+  <text x="1210" y="458" class="body">Probe outcomes</text><text x="1210" y="496" class="body">Candidate set · rubric</text>
+  <rect x="1590" y="295" width="210" height="280" rx="18" class="private"/>
+  <text x="1625" y="355" class="tiny">PRIVATE</text><text x="1625" y="412" class="head">Case model</text>
+  <text x="1625" y="458" class="body">Hidden cause</text><text x="1625" y="496" class="body">Forecast rows</text>
+  <path d="M450 384H590" class="arrow"/><text x="468" y="365" class="tiny">ACTION</text>
+  <path d="M600 485H460" class="soft"/><text x="474" y="530" class="tiny">PUBLIC VIEW</text>
+  <path d="M1020 390H1160" class="arrow"/><text x="1030" y="370" class="tiny">APPLY</text>
+  <path d="M1170 500H1030" class="soft"/>
+  <path d="M1580 390H1500" class="dash"/><text x="1490" y="367" class="tiny">SERVER ONLY</text>
+  <rect x="600" y="690" width="330" height="190" rx="16" class="box"/>
+  <text x="640" y="748" class="tiny">ONE SOURCE OF HISTORY</text><text x="640" y="800" class="head">SQLite event ledger</text>
+  <text x="640" y="842" class="body">Replay rebuilds episode state</text>
+  <path d="M760 575V680" class="arrow"/>
+  <rect x="1050" y="690" width="390" height="190" rx="16" class="box"/>
+  <text x="1090" y="748" class="tiny">ADVISORY AFTER LOCK</text><text x="1090" y="800" class="head">Optional Examiner</text>
+  <text x="1090" y="842" class="body">Explains checked claims; no scoring</text>
+  <path d="M995 575C1035 620 1125 642 1235 680" class="dash"/><text x="1015" y="640" class="tiny">POST-LOCK CLAIMS</text>
+  <text x="120" y="990" class="tiny">SKEPTIC: DETERMINISTIC · USES SUBMITTED FORECAST + PUBLIC STATE · DOES NOT SEE PRIVATE MODEL</text>
+</svg>

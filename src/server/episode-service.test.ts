@@ -308,6 +308,67 @@ describe("event-backed episode service", () => {
     rmSync(`${filename}-wal`, { force: true });
   });
 
+  it("replays accepted case action sequences to the same public state across restart", () => {
+    const scripts = [
+      {
+        caseId: "pin-9-refusal",
+        truths: ["H1", "H2", "H3", "H4"],
+        proposals: [
+          { probeId: "P3", predictions: { H1: "completed", H2: "refused", H3: "refused", H4: "completed" } },
+          { probeId: "P4", predictions: { H1: "stopped-at-95", H2: "full-range", H3: "full-range", H4: "full-range" } },
+        ],
+      },
+      {
+        caseId: "conveyor-index-drift",
+        truths: ["C1", "C2", "C3", "C4"],
+        proposals: [
+          { probeId: "C-P3", predictions: { C1: "count-low", C2: "count-matches", C3: "count-matches", C4: "count-matches" } },
+          { probeId: "C-P4", predictions: { C1: "mount-secure", C2: "mount-loose", C3: "mount-secure", C4: "mount-secure" } },
+        ],
+      },
+    ] as const;
+
+    for (const script of scripts) {
+      for (const truth of script.truths) {
+        const filename = join(tmpdir(), `twinsleuth-replay-${randomUUID()}.sqlite`);
+        let service = new EpisodeService(filename);
+        let view = service.start(script.caseId, truth);
+        expect(service.get(view.id)).toEqual(view);
+
+        const apply = (nextAction: object) => {
+          view = service.act(view.id, action(nextAction, view.revision));
+          expect(service.get(view.id)).toEqual(view);
+        };
+
+        apply({ type: "beliefs", possibleHypotheses: [...script.truths] });
+        for (const proposal of script.proposals) {
+          apply({ type: "propose", ...proposal });
+          if (view.skeptic) apply({ type: "skeptic-decision", decision: "run-anyway" });
+          apply({ type: "run", probeId: proposal.probeId });
+        }
+
+        const beforeRejectedAction = service.get(view.id);
+        const eventsBeforeRejectedAction = service.replay(view.id);
+        expect(() => service.act(view.id, action({ type: "run", probeId: script.proposals[0]!.probeId }, view.revision, "replay-duplicate-run"))).toThrow("only once");
+        expect(service.get(view.id)).toEqual(beforeRejectedAction);
+        expect(service.replay(view.id)).toEqual(eventsBeforeRejectedAction);
+
+        const beforeRestart = view;
+        const sequence = service.replay(view.id).map((event) => (event as { seq: number }).seq);
+        expect(sequence).toEqual(sequence.map((_, index) => index));
+        service.close();
+
+        service = new EpisodeService(filename);
+        expect(service.get(view.id)).toEqual(beforeRestart);
+        expect(service.replay(view.id).map((event) => (event as { seq: number }).seq)).toEqual(sequence);
+        service.close();
+        rmSync(filename, { force: true });
+        rmSync(`${filename}-shm`, { force: true });
+        rmSync(`${filename}-wal`, { force: true });
+      }
+    }
+  });
+
   it("fails safely when a persisted event payload is malformed JSON", () => {
     const filename = join(tmpdir(), `twinsleuth-corrupt-${randomUUID()}.sqlite`);
     let service = new EpisodeService(filename);

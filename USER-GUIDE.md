@@ -4,6 +4,8 @@ TwinSleuth is a browser-based practice simulator with **PIN-9 Refusal** and **Co
 
 This is a learning simulation. It does not connect to or operate physical equipment, and its synthetic results are not industrial safety advice.
 
+The walkthrough below uses PIN-9 for detailed examples. Select Conveyor Index Drift from the case picker to practice its separate causes and probes; the interface displays the case-specific controls.
+
 ## Open the website
 
 ### Run it on your computer
@@ -143,4 +145,4 @@ npm run test:e2e
 npm run capture:demo
 ```
 
-`npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and the local video at `submission/twinsleuth-demo.webm`.
+`npm run capture:demo` regenerates the screenshots in `submission/screenshots/` and a short local preview at `submission/twinsleuth-demo.webm`. The full narrated submission video is [submission/TwinSleuth-Demo.mp4](submission/TwinSleuth-Demo.mp4).

@@ -2,7 +2,7 @@
 
 ## Scope and visitor mode
 
-The complete PIN-9 practice flow in `src/web/main.tsx`, including first run, probe selection, evidence review, diagnosis, scoring, and replay. Mode: Operate.
+The complete two-case practice flow in `src/web/main.tsx`, including case selection, probe choice, evidence review, diagnosis, scoring, and replay. The arm case anchors the visual direction; Conveyor Index Drift is also supported. Mode: Operate.
 
 ## Audience and task
 
@@ -10,7 +10,7 @@ Technical learners practice diagnosing a simulated industrial fault. They keep p
 
 ## Proof and content
 
-Use the existing PIN-9 arm, controller code, four causes, six probes, revealed observations, and score. Do not introduce causal relationships or forecast details the current model does not support.
+Use the registered PIN-9 arm and Conveyor Index Drift case models. Do not introduce causal relationships or forecast details the models do not support.
 
 ## Direction contract
 
@@ -40,4 +40,4 @@ unreviewed and undocumented is unfinished; this build ends with the finish revie
 
 ## Unresolved decisions
 
-The surface covers the current single PIN-9 case. Additional audiences and cases remain undecided.
+The shipped practice set contains the PIN-9 and Conveyor Index Drift cases. Additional audiences and cases remain undecided.

@@ -13,14 +13,14 @@ Executed locally after `npm ci`:
 | --- | --- |
 | `npm run validate:case` | Pass: 4 causes, 6 probes; all pairs distinguishable. |
 | `npm run typecheck` | Pass. |
-| `npm test` | Pass: 6 files, 59 tests. |
+| `npm test` | Pass: 6 files, 64 tests. |
 | `npm run build` | Pass. |
-| `npm run test:e2e` | Pass: 13 tests. |
+| `npm run test:e2e` | Pass: 14 tests. |
 | `npm run capture:demo` | Pass: deterministic capture generated. |
 
 The initial browser invocation encountered a stale process from the interrupted
 local test runner; no user process was stopped. A fresh isolated Playwright
-run passed.
+run passed. The counts above are the current cleanup baseline as of 2026-10-12.
 
 ## Future acceptance protocol (set before test evaluation)
 

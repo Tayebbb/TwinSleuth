@@ -20,20 +20,20 @@ Learners commit to predictions before running a probe, compare those predictions
 
 ## Operating Context
 
-The current practice surface is a single PIN-9 robot-arm episode. A learner tracks plausible causes, selects probes under a time budget, predicts each cause's result, reviews observations, and submits a diagnosis with cited evidence for scoring and debrief.
+The practice surface offers two simulated cases: PIN-9 Refusal and Conveyor Index Drift. In either case, a learner tracks plausible causes, selects probes under a time budget, predicts each cause's result, reviews observations, and submits a diagnosis with cited evidence for scoring and debrief.
 
 ## Capabilities and Constraints
 
-- The shipped case has four candidate causes and six diagnostic probes.
+- The shipped practice set has two simulated cases: PIN-9 Refusal (four causes, six probes) and Conveyor Index Drift (four causes, five probes).
 - A deterministic server owns the selected fault, private forecast matrix, and evaluation.
 - A probe's forecast rows stay private until that probe has run; the selected fault is revealed after evaluation.
 - The interface supports laptop and phone viewports, keyboard use, and visible focus.
 - The current product is a practice simulator; it does not operate or control physical equipment.
-- Audience expansion beyond technical learners and additional cases remain undecided.
+- Audience expansion beyond technical learners and additional cases beyond these two remain undecided.
 
 ## Evidence on Hand
 
-- The PIN-9 scenario and executable forecast model are in `src/case/`.
+- Public case catalogs and server-only forecasts are in `src/case/` and `src/server/case-model/` respectively.
 - The playable interface is in `src/web/` and its functional end-to-end path is in `e2e/`.
 - Submission screenshots and a deterministic demo recording are in `submission/`.
 - Scenario outcomes are synthetic; there are no customer, outcome, or deployment claims to present as real-world evidence.

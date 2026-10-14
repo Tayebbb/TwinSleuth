@@ -69,7 +69,8 @@ a finding that the claimed preparation is absent from the checked repository.
 
 ### Result
 
-Only the six prior ML-research Markdown records exist. No
+At the initial audit checkpoint, only the six ML-research Markdown records
+then present existed. The follow-up added validation protocols, but no
 `research/learner-reasoning/` directory or equivalent was found. Specifically
 absent: annotation guidelines; seven-category definitions/examples/borderline
 rules; synthetic records; provenance/schema/validator; scenario or template

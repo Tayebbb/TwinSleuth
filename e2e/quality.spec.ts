@@ -136,7 +136,7 @@ test("does not serve private server code, the forecast model, secrets, or repo m
   const paths = [
     "/src/server/case-model/pin9.ts", "/src/server/case-model/pin9.ts?raw", "/src/server/episode-service.ts",
     "/src/engine/score.ts", "/@fs/" + process.cwd().replaceAll("\\", "/") + "/src/server/case-model/pin9.ts",
-    "/.env", "/.env.example", "/.git/config", "/package.json", "/audit/FINDINGS.md", "/handoff.md",
+    "/.env", "/.env.example", "/.git/config", "/package.json", "/audit/FINDINGS.md", "/USER-GUIDE.md",
   ];
   for (const path of paths) {
     const response = await request.get(path);

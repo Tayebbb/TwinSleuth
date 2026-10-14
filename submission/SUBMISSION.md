@@ -1,8 +1,8 @@
 # TwinSleuth submission brief
 
-TwinSleuth is a browser practice lab for simulated PIN-9 robot-arm refusal and Conveyor Index Drift cases. Learners commit per-cause predictions before choosing a maintenance test, spend a limited 30-minute diagnostic budget, and defend a diagnosis with evidence. A bounded deterministic Skeptic challenges non-discriminating reasoning without seeing hidden truth or unrun model forecasts. After lock, deterministic code scores the episode and an optional bounded Examiner explains checked claims.
+TwinSleuth is a browser simulator for practicing fault diagnosis through two fictional cases: PIN-9 Refusal and Conveyor Index Drift. Learners predict test results before running probes, work within a simulated 30-minute budget, compare predictions with observations, and support a final diagnosis with evidence.
 
-The demo begins with a stationary arm and a pre-start `SAFETY_REJECT`. The learner proposes the uninformative P1 retry, receives a Skeptic challenge, revises to the balanced P3 test, then runs P4 to observe J2 stopping at 95 degrees. The debrief compares learner beliefs with the evidence-consistent timeline, shows path cost against the exact policy, checks four structured claims, and only then reveals the server-selected fault.
+The five-minute demo follows a PIN-9 refusal case from the initial `SAFETY_REJECT` through prediction, a deterministic Skeptic challenge, P3 and P4 observations, an evidence-backed diagnosis, and a deterministic debrief. It demonstrates the server-owned truth boundary and the full no-provider path.
 
 TwinSleuth is simulated practice, not a digital twin, industrial safety system, or validated learning intervention. It runs completely in deterministic template mode without a provider key; `GEMINI_API_KEY` enables optional structured Examiner feedback with one retry and deterministic fallback. The Skeptic remains deterministic.
 
@@ -18,4 +18,4 @@ npm run test:e2e
 npm run capture:demo
 ```
 
-Screenshots are in `submission/screenshots/`; the deterministic local capture is `submission/twinsleuth-demo.webm`.
+The submitted demo is [TwinSleuth-Demo.mp4](TwinSleuth-Demo.mp4) (1920×1080, 5:00, with narration and burned-in captions); its caption file is [TwinSleuth-Demo.srt](TwinSleuth-Demo.srt). The same MP4 is uploaded to YouTube at [youtu.be/elNEaO97DTY](https://youtu.be/elNEaO97DTY) and embedded in the submitted [Devpost project](https://devpost.com/software/twinsleuth). Screenshots are in `submission/screenshots/`. `npm run capture:demo` generates a shorter local browser-capture preview for verification; it is not the submitted demo.
