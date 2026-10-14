@@ -104,7 +104,7 @@ describe("event-backed episode service", () => {
     service.close();
   });
 
-  it("uses predictions submitted with a Skeptic revision for the run and score", () => {
+  it("runs the Skeptic-revised predictions but scores the first committed forecast", () => {
     const service = new EpisodeService();
     const started = service.start("H1");
     const proposed = service.act(started.id, action({
@@ -118,6 +118,23 @@ describe("event-backed episode service", () => {
     }, proposed.revision));
     expect(revised.proposals.P3).toEqual({ H1: "completed", H2: "refused", H3: "refused", H4: "completed" });
     expect(revised.revisedPredictions.P3).toEqual(revised.proposals.P3);
+
+    let view = service.act(revised.id, action({ type: "run", probeId: "P3" }, revised.revision));
+    view = service.act(view.id, action({
+      type: "propose", probeId: "P4",
+      predictions: { H1: "stopped-at-95", H2: "full-range", H3: "full-range", H4: "full-range" },
+    }, view.revision));
+    if (view.skeptic) view = service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, view.revision));
+    view = service.act(view.id, action({ type: "run", probeId: "P4" }, view.revision));
+    view = service.act(view.id, action({
+      type: "lock", diagnosis: "H1", confidence: 5, justification: "P4 isolates H1.", claims: [
+        { hypothesisId: "H1", stance: "supports", evidenceIds: [view.observations[1]!.evidenceId] },
+        { hypothesisId: "H2", stance: "rules_out", evidenceIds: [view.observations[0]!.evidenceId] },
+        { hypothesisId: "H3", stance: "rules_out", evidenceIds: [view.observations[0]!.evidenceId] },
+        { hypothesisId: "H4", stance: "rules_out", evidenceIds: [view.observations[1]!.evidenceId] },
+      ],
+    }, view.revision));
+    expect(view.score).toMatchObject({ correctPredictions: 6, predictionCount: 8, predictionAccuracy: 11.25 });
     service.close();
   });
 

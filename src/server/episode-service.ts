@@ -60,6 +60,7 @@ interface State {
   revision: number;
   beliefs: string[];
   proposals: Record<string, PredictionSet>;
+  firstPredictions: Record<string, PredictionSet>;
   revisions: Record<string, PredictionSet>;
   observations: Observation[];
   unsafeAttempts: number;
@@ -108,7 +109,7 @@ export interface PublicView {
 }
 
 function initialState(model: DiagnosticModel): State {
-  return { revision: 0, beliefs: model.hypotheses.map(({ id }) => id), beliefTimeline: [], proposals: {}, revisions: {}, observations: [], unsafeAttempts: 0, traces: [], status: "active" };
+  return { revision: 0, beliefs: model.hypotheses.map(({ id }) => id), beliefTimeline: [], proposals: {}, firstPredictions: {}, revisions: {}, observations: [], unsafeAttempts: 0, traces: [], status: "active" };
 }
 
 export class EpisodeService {
@@ -245,7 +246,10 @@ export class EpisodeService {
         state.beliefs = beliefs;
         state.beliefTimeline.push({ revision: state.revision + 1, beliefs: [...beliefs] });
       }
-      if (stored.type === "PROBE_PROPOSED" && payload.proposal) state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
+      if (stored.type === "PROBE_PROPOSED" && payload.proposal) {
+        state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
+        state.firstPredictions[payload.proposal.probeId] = payload.proposal.predictions;
+      }
       if (stored.type === "PROBE_REVISED" && payload.proposal) {
         state.revisions[payload.proposal.probeId] = payload.proposal.predictions;
         state.proposals[payload.proposal.probeId] = payload.proposal.predictions;
@@ -330,7 +334,7 @@ export class EpisodeService {
         this.append(id, "DIAGNOSIS_LOCKED", { diagnosis });
         const secret = this.db.prepare("SELECT truth_hypothesis_id FROM episode_secrets WHERE episode_id = ?").get(id) as { truth_hypothesis_id: "H1" | "H2" | "H3" | "H4" };
         const next = this.fold(id, model);
-        const score = gradeEpisode(model, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.proposals).map(([probeId, predictions]) => ({ probeId, predictions })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
+        const score = gradeEpisode(model, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.firstPredictions).map(([probeId, predictions]) => ({ probeId, predictions })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
         this.append(id, "EVALUATED", { score });
         this.trackAgent(id, "examiner", () => this.recordExaminer(id, diagnosis, score.claimChecks));
         this.append(id, "TRUTH_REVEALED", { truth: secret.truth_hypothesis_id });
