@@ -38,6 +38,8 @@ test("capture deterministic submission states", async ({ page }) => {
   // Hold captions long enough to read in the local preview; the submitted narration video is separate.
   test.setTimeout(120_000);
   await page.goto("/");
+  // Full-page captures otherwise repeat the sticky navigation bar at every viewport boundary.
+  await page.addStyleTag({ content: ".global-nav { position: static !important; }" });
   await caption(page, "TwinSleuth is a simulated practice lab for evidence-based fault diagnosis.");
   await page.screenshot({ path: `${screenshots}/01-laptop-bench.png`, fullPage: true });
 
@@ -80,4 +82,11 @@ test("capture deterministic submission states", async ({ page }) => {
   await page.waitForFunction(() => window.scrollY === 0);
   await caption(page, "The same practice flow adapts to a phone-sized screen.");
   await page.screenshot({ path: `${screenshots}/06-phone-debrief.png`, fullPage: true });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByLabel("Practice case").selectOption({ label: "Conveyor Index Drift" });
+  await page.getByRole("button", { name: "Start selected case" }).click();
+  await wait(page);
+  await caption(page, "A second fictional case practices diagnosis of conveyor index drift.");
+  await page.screenshot({ path: `${screenshots}/07-conveyor-case.png`, fullPage: true });
 });

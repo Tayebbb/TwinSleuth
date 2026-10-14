@@ -9,7 +9,7 @@ Use this checklist to track TwinSleuth's submission evidence. A checked item has
 - [x] Working local project: the React practice bench, Fastify API, SQLite event ledger, deterministic diagnosis engine, and browser journey are implemented.
 - [x] Core learning loop works locally: choose causes, forecast a probe, respond to the Skeptic when needed, run probes, cite evidence, submit a diagnosis, and receive a debrief.
 - [x] Reproducible validation commands are documented in [README.md](../README.md).
-- [x] Submitter confirmed the project was created during the hackathon period and was not previously completed; the visible repository history begins October 8, 2026.
+- [ ] Confirm eligibility with the submitter and organizers: the event overview and rules differ on age/student requirements, and the submitter has not confirmed when project work began.
 
 ## Devpost page
 
@@ -17,12 +17,12 @@ Use this checklist to track TwinSleuth's submission evidence. A checked item has
 - [x] Short project description is ready in [SUBMISSION.md](SUBMISSION.md).
 - [x] Longer product description and honest scope statements are ready in [README.md](../README.md) and [USER-GUIDE.md](../USER-GUIDE.md).
 - [x] Technology list is derivable from [package.json](../package.json): React, TypeScript, Vite, Fastify, SQLite via better-sqlite3, LangGraph (post-lock Examiner only), Zod, GSAP, Playwright, and axe-core. Optional Examiner requests Gemini through the Google Generative Language API.
-- [x] Six current screenshots are available under [screenshots](screenshots/).
+- [x] Seven current screenshots are available under [screenshots](screenshots/), including a clean Conveyor Index Drift case view.
 - [x] The final narrated five-minute demo is available at [TwinSleuth-Demo.mp4](TwinSleuth-Demo.mp4), with captions at [TwinSleuth-Demo.srt](TwinSleuth-Demo.srt).
 - [x] Demo narration and storyboard are documented in [DEMO-SCRIPT.md](DEMO-SCRIPT.md) and [`../artifacts/demo-video/`](../artifacts/demo-video/).
 - [x] Submitted Devpost page includes the project story, technology tags, screenshots, source link, and video.
 - [x] Uploaded the final demo to YouTube as an unlisted video and linked it in Devpost: [youtu.be/elNEaO97DTY](https://youtu.be/elNEaO97DTY).
-- [x] Verified the uploaded video has narration and captions and shows the complete P1 → P3 → P4 diagnosis and debrief. The local MP4 and YouTube trim editor both report 5:00; YouTube's content list rounds it to 5:01.
+- [x] Verified the unlisted YouTube demo has narration and captions and shows the complete P1 → P3 → P4 diagnosis and debrief. The YouTube editor displays 5:00 after trimming the ending to 4:59:06 at 30 fps.
 
 ## Source repository
 
@@ -49,20 +49,20 @@ Use this checklist to track TwinSleuth's submission evidence. A checked item has
 - [x] `npm test` exercises engine, service, agent, persistence, and artifact-privacy behavior. Gemini adapter tests stub network calls; no real provider key is required.
 - [x] `npm run build` produces a Vite production build.
 - [x] `npm run test:e2e` checks the P1 → P3 → P4 diagnosis journey, laptop and phone layout, keyboard use, visible focus, target sizes, axe accessibility, and local SQLite-file denial.
-- [x] `npm run capture:demo` regenerates the screenshots and deterministic WebM.
+- [x] `npm run capture:demo` regenerates the screenshots and deterministic WebM; the capture disables sticky positioning so full-page images do not repeat the header.
 - [x] Full local verification run on Windows on October 15, 2026: `npm ci` (zero vulnerabilities reported), case validation, typecheck, unit tests, build, E2E tests, and deterministic demo capture all passed.
 - [ ] Repeat the full verification sequence before any future release.
 
-## Preparation rubric (unverified)
+## Judging criteria
 
-The categories below are internal preparation prompts, not a verified organizer rubric. Confirm the event's official criteria before using this table to claim contest fit.
+The [official rules](https://next-byte-hacks-v5.devpost.com/rules) list four equally weighted criteria. The [event overview](https://next-byte-hacks-v5.devpost.com/) instead lists Impact; ask organizers which page controls if they clarify.
 
-| Criterion | Evidence ready | Final submission work |
+| Criterion (rules page) | Evidence ready | Final submission work |
 |---|---|---|
 | Innovation & Creativity | Learners must commit per-cause predictions before evidence is revealed; the Skeptic questions non-discriminating reasoning without access to hidden truth. | Explain this learning interaction plainly; do not claim novelty or proven learning impact without evidence. |
 | Technical Complexity | Server-authoritative hidden state, deterministic Skeptic, scoring and policy solver, file-backed event ledger, and optional post-lock LangGraph Examiner with schema validation/retry/fallback; privacy checks and browser tests. | Mention only the components you can show in the repository and demo. |
-| Functionality & Execution | Two playable local cases, responsive laptop/phone interface, keyboard flow, accessibility checks, test coverage, deterministic demo capture. | Run the clean final verification sequence and use the refreshed screenshots. |
-| Presentation & Clarity | Five-minute narrated demo with captions, six submission screenshots, submission brief, and user guide. | Keep the final video, story, and repository claims aligned if the submission changes. |
+| Functionality & Execution | Two playable local cases, responsive laptop/phone interface, keyboard flow, accessibility checks, test coverage, deterministic demo capture. | Keep the verification record current and use clean screenshots. |
+| Presentation & Clarity | Five-minute narrated demo with captions, submission screenshots, a worked example, and local run directions. | Keep the video, story, and repository claims aligned. |
 
 ## Final checks
 
@@ -73,6 +73,6 @@ The categories below are internal preparation prompts, not a verified organizer 
 - [ ] Required licensing, API, platform, and AI-tool compliance confirmations are complete.
 - [x] Submitted to the event before its deadline; the page remains editable until the deadline.
 
-## Event-page discrepancy
+## Event-page discrepancies
 
-The official rules page states a 2–5 minute demo; the event overview states 1–3 minutes. This submission uses the 5:00 upper bound stated in the rules. Confirm which limit organizers will enforce if clarification becomes available.
+The [rules page](https://next-byte-hacks-v5.devpost.com/rules) states a 2–5 minute demo, worldwide eligibility from age 13 (or the local minimum), and four equally weighted judging criteria. The [event overview](https://next-byte-hacks-v5.devpost.com/) states a 1–3 minute demo, student-only eligibility above the local age of majority, and Impact as its judging criterion. The submitted video is 5:00 per the rules page. Eligibility and the controlling criteria remain unconfirmed; do not represent them as verified.
