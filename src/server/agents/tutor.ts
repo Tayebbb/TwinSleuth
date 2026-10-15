@@ -30,6 +30,11 @@ function fallback(skill: TutorSkill, revision: number): AgentTrace {
   return { graph: "tutor", status: "fallback", inputSummary: `${revision}|${skill}`, output: `${item.lesson}\n\nReflection: ${item.reflection}`, skill, revision, lesson: item.lesson, reflection: item.reflection };
 }
 
+function failureKind(error: unknown): "timeout" | "provider" | "invalid-response" {
+  if (error instanceof Error && error.name === "TimeoutError") return "timeout";
+  return error instanceof Error && /Gemini request failed/i.test(error.message) ? "provider" : "invalid-response";
+}
+
 export async function runTutor(skill: TutorSkill, revision: number, client = defaultGeminiClient()): Promise<AgentTrace> {
   if (!client) return fallback(skill, revision);
   try {
@@ -37,7 +42,8 @@ export async function runTutor(skill: TutorSkill, revision: number, client = def
     if (!result.success) return fallback(skill, revision);
     const { lesson, reflection } = result.data;
     return { graph: "tutor", status: "model", inputSummary: `${revision}|${skill}`, output: `${lesson}\n\nReflection: ${reflection}`, skill, revision, lesson, reflection };
-  } catch {
+  } catch (error) {
+    console.warn("TwinSleuth tutor inference fallback", { kind: failureKind(error) });
     return fallback(skill, revision);
   }
 }
