@@ -42,33 +42,61 @@ function postgresExecutor(client: Pick<Pool, "query"> | PoolClient): SqlExecutor
   };
 }
 
+function isTransientConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ECONNRESET" || code === "ETIMEDOUT" || code === "EHOSTUNREACH" || code === "ENETUNREACH"
+    || /connection terminated due to connection timeout/i.test(error.message);
+}
+
+async function withConnectionRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isTransientConnectionError(error)) throw error;
+    return operation();
+  }
+}
+
 export class PostgresStore implements EpisodeStore {
   private readonly pool: Pool;
-  private readonly ready: Promise<void>;
+  private ready: Promise<void> | undefined;
 
   constructor(connectionString: string) {
     this.pool = new Pool({ connectionString, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 5_000 });
-    this.ready = schema.split(";").map((statement) => statement.trim()).filter(Boolean)
-      .reduce((ready, statement) => ready.then(() => this.pool.query(statement).then(() => undefined)), Promise.resolve());
+  }
+
+  private ensureReady(): Promise<void> {
+    if (!this.ready) {
+      this.ready = withConnectionRetry(async () => {
+        for (const statement of schema.split(";").map((part) => part.trim()).filter(Boolean)) {
+          await this.pool.query(statement);
+        }
+      }).catch((error: unknown) => {
+        this.ready = undefined;
+        throw error;
+      });
+    }
+    return this.ready;
   }
 
   async all<T extends Row>(sql: string, ...params: unknown[]) {
-    await this.ready;
+    await this.ensureReady();
     return postgresExecutor(this.pool).all<T>(sql, ...params);
   }
 
   async get<T extends Row>(sql: string, ...params: unknown[]) {
-    await this.ready;
+    await this.ensureReady();
     return postgresExecutor(this.pool).get<T>(sql, ...params);
   }
 
   async run(sql: string, ...params: unknown[]) {
-    await this.ready;
+    await this.ensureReady();
     await postgresExecutor(this.pool).run(sql, ...params);
   }
 
   async transaction<T>(work: (tx: SqlExecutor) => Promise<T>): Promise<T> {
-    await this.ready;
+    await this.ensureReady();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
