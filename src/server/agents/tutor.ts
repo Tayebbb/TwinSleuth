@@ -30,9 +30,10 @@ function fallback(skill: TutorSkill, revision: number): AgentTrace {
   return { graph: "tutor", status: "fallback", inputSummary: `${revision}|${skill}`, output: `${item.lesson}\n\nReflection: ${item.reflection}`, skill, revision, lesson: item.lesson, reflection: item.reflection };
 }
 
-function failureKind(error: unknown): "timeout" | "provider" | "invalid-response" {
-  if (error instanceof Error && error.name === "TimeoutError") return "timeout";
-  return error instanceof Error && /Gemini request failed/i.test(error.message) ? "provider" : "invalid-response";
+function failureKind(error: unknown): { kind: "timeout" | "provider" | "invalid-response"; httpStatus?: number } {
+  if (error instanceof Error && error.name === "TimeoutError") return { kind: "timeout" };
+  const status = error instanceof Error ? /Gemini request failed with HTTP (\d+)/i.exec(error.message)?.[1] : undefined;
+  return status ? { kind: "provider", httpStatus: Number(status) } : { kind: "invalid-response" };
 }
 
 export async function runTutor(skill: TutorSkill, revision: number, client = defaultGeminiClient()): Promise<AgentTrace> {
