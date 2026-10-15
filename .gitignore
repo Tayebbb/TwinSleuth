@@ -14,3 +14,5 @@ test-results-isolated/
 /artifacts/demo-video/assets/audio/
 /artifacts/demo-video/demo.mp4
 /artifacts/demo-video/demo-visible-captions.mp4
+
+/submission/capture/
