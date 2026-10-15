@@ -32,12 +32,8 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${graph === "tutor" ? "Return only a JSON object with exactly two string fields named lesson and reflection. Do not use Markdown fences." : `Return only a JSON object with exactly one string field named ${graph === "skeptic" ? "question" : "feedback"}. Do not use Markdown fences.`}` }] }],
       generationConfig: {
-        responseFormat: {
-          text: {
-            mimeType: "APPLICATION_JSON",
-            ...(graph === "tutor" ? { schema: tutorResponseSchema } : {}),
-          },
-        },
+        responseMimeType: "application/json",
+        ...(graph === "tutor" ? { responseJsonSchema: tutorResponseSchema } : {}),
         maxOutputTokens: graph === "skeptic" ? 180 : graph === "tutor" ? 220 : 300,
       },
     }),
