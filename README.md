@@ -40,6 +40,8 @@ The submitted walkthrough follows the fixed PIN-9 path. Screenshots below show t
 
 ![Skeptic explains why the first forecast cannot narrow the causes](submission/screenshots/02-skeptic-challenge.png)
 
+![Optional Gemini tutor gives a general lesson after the deterministic Skeptic signal](submission/screenshots/08-ai-tutor.png)
+
 ![Debrief score breakdown and evidence claims](submission/screenshots/05-debrief.png)
 
 ![Conveyor Index Drift practice case](submission/screenshots/07-conveyor-case.png)
@@ -64,7 +66,7 @@ flowchart LR
     Tutor -->|validated lesson or curated fallback| UI
 ```
 
-The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional Gemini AI Tutor appears after a deterministic reasoning signal and teaches a general skill without receiving case evidence, forecasts, diagnoses, scores, or learner text. The post-diagnosis Examiner and Tutor can only provide validated advisory text; neither can change truth, diagnosis, score, or episode state. If Gemini is unavailable, the Tutor shows a clearly labeled curated lesson.
+The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional Gemini AI Tutor appears after a deterministic reasoning signal and teaches a general skill without receiving case evidence, forecasts, diagnoses, scores, or learner text. The post-diagnosis Examiner and Tutor can only provide validated advisory text; neither can change truth, diagnosis, score, or episode state. If Gemini is unavailable, the Tutor shows a clearly labeled curated lesson. The five-minute demo includes a live Gemini tutor interaction.
 
 ## Run locally
 
