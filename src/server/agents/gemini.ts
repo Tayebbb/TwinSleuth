@@ -4,6 +4,16 @@ type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
 };
 
+const tutorResponseSchema = {
+  type: "object",
+  properties: {
+    lesson: { type: "string", maxLength: 420 },
+    reflection: { type: "string", maxLength: 220 },
+  },
+  required: ["lesson", "reflection"],
+  additionalProperties: false,
+} as const;
+
 function parseObject(content: string): unknown {
   const start = content.indexOf("{");
   const end = content.lastIndexOf("}");
@@ -21,7 +31,15 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
     signal: AbortSignal.timeout(graph === "tutor" ? 6_000 : 20_000),
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${graph === "tutor" ? "Return only a JSON object with exactly two string fields named lesson and reflection. Do not use Markdown fences." : `Return only a JSON object with exactly one string field named ${graph === "skeptic" ? "question" : "feedback"}. Do not use Markdown fences.`}` }] }],
-      generationConfig: { responseMimeType: "application/json", maxOutputTokens: graph === "skeptic" ? 180 : graph === "tutor" ? 220 : 300 },
+      generationConfig: {
+        responseFormat: {
+          text: {
+            mimeType: "application/json",
+            ...(graph === "tutor" ? { schema: tutorResponseSchema } : {}),
+          },
+        },
+        maxOutputTokens: graph === "skeptic" ? 180 : graph === "tutor" ? 220 : 300,
+      },
     }),
   });
   if (!response.ok) throw new Error(`Gemini request failed with HTTP ${response.status}.`);

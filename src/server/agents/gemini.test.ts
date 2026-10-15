@@ -31,7 +31,7 @@ describe("Gemini production provider", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("models/gemini-test:generateContent?key=test-key");
-    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", maxOutputTokens: 180 } });
+    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseFormat: { text: { mimeType: "application/json" } }, maxOutputTokens: 180 } });
   });
 
   it("uses the bounded tutor response contract", async () => {
@@ -41,6 +41,6 @@ describe("Gemini production provider", () => {
 
     await expect(defaultGeminiClient()!.invoke("Teach a generic skill.", "tutor")).resolves.toEqual({ lesson: "Compare predictions first.", reflection: "What would separate them?" });
     const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", maxOutputTokens: 220 } });
+    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseFormat: { text: { mimeType: "application/json", schema: { type: "object", required: ["lesson", "reflection"], additionalProperties: false } } }, maxOutputTokens: 220 } });
   });
 });
