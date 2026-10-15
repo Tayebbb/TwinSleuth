@@ -527,9 +527,9 @@ pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 
 }
 .prediction {
   grid-column: span 4;
-  border-top: 4px solid var(--amber);
   border-radius: 16px;
   background: linear-gradient(145deg, #fffdf8, var(--amber-soft));
+  box-shadow: inset 0 3px 0 var(--amber), 0 14px 30px rgba(16, 43, 50, .06);
   padding: 18px;
 }
 .evidence, .diagnosis, .debrief {
@@ -639,4 +639,81 @@ pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 
 .prediction-row select:focus-visible {
   outline: 2px solid var(--signal-deep);
   outline-offset: 3px;
+}
+
+/* Tutor: a calm, self-contained coaching moment inside the decision workspace. */
+.ai-tutor {
+  position: relative;
+  overflow: hidden;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 14px;
+  background: #eef7fb;
+  box-shadow: 0 14px 28px rgba(30, 84, 112, .12);
+  color: #173a50;
+  padding: 0;
+}
+.ai-tutor-heading {
+  align-items: flex-start;
+  margin: 0;
+  border-bottom: 1px solid rgba(42, 115, 155, .18);
+  background: rgba(255,255,255,.44);
+  padding: 14px 15px 12px 19px;
+}
+.ai-tutor-heading div { gap: 3px; }
+.tutor-eyebrow {
+  color: #376b89;
+  font: 650 .65rem/1 var(--font-data);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ai-tutor-heading b { color: #123a52; font-size: 1rem; }
+.ai-tutor-heading small { color: #376b89; font-size: .78rem; text-transform: capitalize; }
+.tutor-close {
+  border-radius: 8px;
+  color: #376b89;
+  transition: background .16s ease, color .16s ease;
+}
+.tutor-close:hover { background: rgba(42,115,155,.12); color: #123a52; }
+.tutor-content, .tutor-invite { padding: 14px 15px 15px 19px; }
+.tutor-source { margin: 0 0 12px; border-radius: 999px; padding: 5px 8px; letter-spacing: .045em; }
+.tutor-source.model { background: #d6ecf7; color: #1f6289; }
+.tutor-source.fallback { background: #f6ebd7; color: #76531c; }
+.tutor-lesson, .tutor-reflection { margin: 0; }
+.tutor-lesson > span, .tutor-reflection > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #376b89;
+  font-size: .72rem;
+  font-weight: 700;
+}
+.tutor-lesson p, .tutor-reflection p { margin: 0; font-size: .9rem; line-height: 1.55; }
+.tutor-lesson p { color: #173a50; }
+.tutor-reflection {
+  margin-top: 13px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.66);
+  padding: 11px 12px;
+}
+.tutor-reflection p { color: #214c66; font-weight: 600; }
+.tutor-boundary, .tutor-invite > small {
+  display: block;
+  margin: 12px 0 0;
+  color: #517990;
+  font-size: .74rem;
+  line-height: 1.45;
+}
+.tutor-invite > p { max-width: 52ch; margin: 0 0 12px; color: #214c66; font-size: .88rem; line-height: 1.5; }
+.learn {
+  width: auto;
+  min-width: 190px;
+  border-radius: 9px;
+  background: #236b93;
+  box-shadow: 0 8px 16px rgba(35,107,147,.18);
+}
+.learn:hover:not(:disabled) { background: #174d6b; border-color: #174d6b; }
+.learn:disabled { background: #7eaac0; border-color: #7eaac0; color: #fff; }
+@media (max-width: 560px) {
+  .ai-tutor-heading, .tutor-content, .tutor-invite { padding-left: 17px; padding-right: 13px; }
+  .learn { width: 100%; }
 }

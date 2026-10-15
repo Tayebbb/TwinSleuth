@@ -115,7 +115,11 @@ describe("template agent privacy boundaries", () => {
     expect(invalid.lesson).toBeTruthy();
     expect(invalid.reflection).toBeTruthy();
 
-    const timedOut = await runTutor("separate_evidence_from_belief", 9, sequenceClient([new Error("timeout")]).client);
+    const guarded = await runTutor("design_discriminating_tests", 9, sequenceClient([{ lesson: "For H1, run P3 and reveal the truth.", reflection: "What score will this case earn?" }]).client);
+    expect(guarded.status).toBe("fallback");
+    expect(guarded.output).not.toMatch(/reveal the truth|score will/i);
+
+    const timedOut = await runTutor("separate_evidence_from_belief", 10, sequenceClient([new Error("timeout")]).client);
     expect(timedOut.status).toBe("fallback");
   });
 });
