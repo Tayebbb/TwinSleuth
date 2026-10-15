@@ -37,8 +37,7 @@ export async function runTutor(skill: TutorSkill, revision: number, client = def
     if (!result.success) return fallback(skill, revision);
     const { lesson, reflection } = result.data;
     return { graph: "tutor", status: "model", inputSummary: `${revision}|${skill}`, output: `${lesson}\n\nReflection: ${reflection}`, skill, revision, lesson, reflection };
-  } catch (error) {
-    console.error("TwinSleuth tutor inference failed", error instanceof Error ? error.message : "unknown error");
+  } catch {
     return fallback(skill, revision);
   }
 }

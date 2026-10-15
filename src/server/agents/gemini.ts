@@ -34,7 +34,7 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
       generationConfig: {
         responseFormat: {
           text: {
-            mimeType: "application/json",
+            mimeType: "APPLICATION_JSON",
             ...(graph === "tutor" ? { schema: tutorResponseSchema } : {}),
           },
         },
@@ -42,10 +42,7 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
       },
     }),
   });
-  if (!response.ok) {
-    const detail = graph === "tutor" ? (await response.text()).slice(0, 500) : "";
-    throw new Error(`Gemini request failed with HTTP ${response.status}.${detail}`);
-  }
+  if (!response.ok) throw new Error(`Gemini request failed with HTTP ${response.status}.`);
   const result = await response.json() as GeminiResponse;
   const content = result.candidates?.[0]?.content?.parts?.map((part) => part.text).filter((text): text is string => typeof text === "string").join("");
   if (!content) throw new Error("Gemini returned no text content.");
