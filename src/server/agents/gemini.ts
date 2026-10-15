@@ -42,7 +42,10 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
       },
     }),
   });
-  if (!response.ok) throw new Error(`Gemini request failed with HTTP ${response.status}.`);
+  if (!response.ok) {
+    const detail = graph === "tutor" ? (await response.text()).slice(0, 500) : "";
+    throw new Error(`Gemini request failed with HTTP ${response.status}.${detail}`);
+  }
   const result = await response.json() as GeminiResponse;
   const content = result.candidates?.[0]?.content?.parts?.map((part) => part.text).filter((text): text is string => typeof text === "string").join("");
   if (!content) throw new Error("Gemini returned no text content.");
