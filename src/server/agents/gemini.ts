@@ -7,8 +7,8 @@ type GeminiResponse = {
 const tutorResponseSchema = {
   type: "object",
   properties: {
-    lesson: { type: "string", maxLength: 420 },
-    reflection: { type: "string", maxLength: 220 },
+    lesson: { type: "string" },
+    reflection: { type: "string" },
   },
   required: ["lesson", "reflection"],
   additionalProperties: false,
