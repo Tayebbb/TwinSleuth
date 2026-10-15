@@ -41,6 +41,6 @@ describe("Gemini production provider", () => {
 
     await expect(defaultGeminiClient()!.invoke("Teach a generic skill.", "tutor")).resolves.toEqual({ lesson: "Compare predictions first.", reflection: "What would separate them?" });
     const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", responseJsonSchema: { type: "object", required: ["lesson", "reflection"], additionalProperties: false }, maxOutputTokens: 220 } });
+    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", maxOutputTokens: 220 } });
   });
 });

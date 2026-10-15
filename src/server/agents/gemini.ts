@@ -4,16 +4,6 @@ type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
 };
 
-const tutorResponseSchema = {
-  type: "object",
-  properties: {
-    lesson: { type: "string" },
-    reflection: { type: "string" },
-  },
-  required: ["lesson", "reflection"],
-  additionalProperties: false,
-} as const;
-
 function parseObject(content: string): unknown {
   const start = content.indexOf("{");
   const end = content.lastIndexOf("}");
@@ -33,7 +23,6 @@ async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): 
       contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${graph === "tutor" ? "Return only a JSON object with exactly two string fields named lesson and reflection. Do not use Markdown fences." : `Return only a JSON object with exactly one string field named ${graph === "skeptic" ? "question" : "feedback"}. Do not use Markdown fences.`}` }] }],
       generationConfig: {
         responseMimeType: "application/json",
-        ...(graph === "tutor" ? { responseJsonSchema: tutorResponseSchema } : {}),
         maxOutputTokens: graph === "skeptic" ? 180 : graph === "tutor" ? 220 : 300,
       },
     }),
