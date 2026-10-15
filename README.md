@@ -2,7 +2,7 @@
 
 ### Practice fault diagnosis by predicting first, testing under a budget, and defending a diagnosis with evidence.
 
-[**Try TwinSleuth online**](https://twin-sleuth.vercel.app) · [**Watch the 5-minute demo**](https://youtu.be/elNEaO97DTY) · [**Open the Devpost submission**](https://devpost.com/software/twinsleuth) · [Learner guide](USER-GUIDE.md)
+[**Try TwinSleuth online**](https://twin-sleuth.vercel.app) · [**Watch the 5-minute demo**](https://youtu.be/woYQCqpaO-Y) · [**Open the Devpost submission**](https://devpost.com/software/twinsleuth) · [Learner guide](USER-GUIDE.md)
 
 TwinSleuth is a browser practice lab with two fictional maintenance cases. It gives technical learners a place to practice choosing tests and reasoning from evidence. It is not a digital twin, an industrial control system, or a validated training intervention; it does not connect to real equipment.
 
