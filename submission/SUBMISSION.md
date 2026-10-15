@@ -32,4 +32,4 @@ npm run test:e2e
 npm run capture:demo
 ```
 
-The submitted demo is [TwinSleuth-Demo.mp4](TwinSleuth-Demo.mp4) (1920×1080, 5:00, with narration and burned-in captions); its caption file is [TwinSleuth-Demo.srt](TwinSleuth-Demo.srt). The same MP4 is uploaded to YouTube at [youtu.be/woYQCqpaO-Y](https://youtu.be/woYQCqpaO-Y) and embedded in the submitted [Devpost project](https://devpost.com/software/twinsleuth). Screenshots are in `screenshots/`; `npm run capture:demo` regenerates them.
+The submitted demo is [TwinSleuth-Demo.mp4](TwinSleuth-Demo.mp4) (1920×1080, 5:00, with narration and burned-in captions); its caption file is [TwinSleuth-Demo.srt](TwinSleuth-Demo.srt). The 5:00 YouTube cut is at [youtu.be/woYQCqpaO-Y](https://youtu.be/woYQCqpaO-Y) and embedded in the submitted [Devpost project](https://devpost.com/software/twinsleuth). Screenshots are in `screenshots/`; `npm run capture:demo` regenerates them.
