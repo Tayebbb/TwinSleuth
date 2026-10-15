@@ -4,7 +4,7 @@
 
 [**Watch the 5-minute demo**](https://youtu.be/elNEaO97DTY) · [**Open the Devpost submission**](https://devpost.com/software/twinsleuth) · [Learner guide](USER-GUIDE.md)
 
-TwinSleuth is a local browser lab with two fictional maintenance cases. It gives technical learners a place to practice choosing tests and reasoning from evidence. It is not a digital twin, an industrial control system, or a validated training intervention; it does not connect to real equipment.
+TwinSleuth is a browser practice lab with two fictional maintenance cases. It gives technical learners a place to practice choosing tests and reasoning from evidence. It is not a digital twin, an industrial control system, or a validated training intervention; it does not connect to real equipment.
 
 ![TwinSleuth practice bench showing causes, test predictions, and the evidence workflow](submission/screenshots/01-laptop-bench.png)
 
@@ -43,7 +43,7 @@ The submitted walkthrough follows the fixed PIN-9 path. Screenshots below show t
 
 ## How it is built
 
-The server keeps the selected fault and unrun forecasts private. Deterministic code owns probe outcomes, evidence validity, the remaining candidate set, budget, diagnosis, and score. SQLite stores the event ledger used to reconstruct an episode. The browser only receives public case data, committed forecasts, and observations after a probe has run.
+The server keeps the selected fault and unrun forecasts private. Deterministic code owns probe outcomes, evidence validity, the remaining candidate set, budget, diagnosis, and score. The browser only receives public case data, committed forecasts, and observations after a probe has run. Local runs use SQLite; the hosted Vercel API uses Neon Postgres for durable episode and event storage.
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,8 @@ flowchart LR
     API --> Episode[Episode service]
     Episode --> Engine[Deterministic engine]
     Episode --> Models[Private case models]
-    Episode --> Ledger[(SQLite event ledger)]
+    Episode --> Local[(Local SQLite ledger)]
+    Episode --> Hosted[(Neon Postgres ledger)]
     Episode -->|public projection| UI
     Episode -->|after diagnosis| Examiner[Optional Gemini Examiner]
     Examiner -->|validated advisory text only| UI
@@ -62,7 +63,7 @@ The complete practice flow works without an AI provider or API key. The Skeptic 
 
 ## Run locally
 
-Requires **Node.js 22 or newer**. There is no hosted interactive instance.
+Requires **Node.js 22 or newer**.
 
 ```sh
 npm ci
@@ -70,6 +71,10 @@ npm run dev
 ```
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The local API runs on port 5174. No provider key is needed for the practice loop.
+
+## Deploy
+
+Vercel builds the Vite client and serves the Fastify API from `api/`. Neon Postgres supplies durable hosted storage through the server-side `DATABASE_URL` environment variable. The Vercel Neon integration manages that secret; never commit it. The optional Examiner remains disabled unless `GEMINI_API_KEY` is configured.
 
 Optional Examiner feedback uses `GEMINI_API_KEY`. Copy `.env.example` to `.env` and set the key there; it stays server-side and is ignored by Git.
 
