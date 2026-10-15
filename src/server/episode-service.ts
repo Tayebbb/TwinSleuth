@@ -9,7 +9,8 @@ import { CASES, getCase } from "./case-model/registry.js";
 import type { CaseDefinition } from "./case-model/registry.js";
 import { runExaminer } from "./agents/examiner.js";
 import { runSkeptic } from "./agents/skeptic.js";
-import type { AgentTrace } from "./agents/types.js";
+import { runTutor } from "./agents/tutor.js";
+import type { AgentTrace, TutorSkill } from "./agents/types.js";
 import { SqliteStore, type EpisodeStore, type SqlExecutor } from "./store.js";
 import { type Action, actionRequestSchema } from "./schemas.js";
 
@@ -97,6 +98,7 @@ export interface PublicView {
   forecastTable?: Record<string, Record<string, string>>;
   traces: AgentTrace[];
   pendingAgents: AgentTrace["graph"][];
+  tutor?: { skill: TutorSkill; trace?: AgentTrace };
   debrief?: { probeLessons: readonly { probeId: string; informative: boolean; remaining: readonly string[]; lesson: string }[]; betterNextProbe?: string; pathLesson: string };
   public: {
     hypotheses: PublicCase["hypotheses"];
@@ -115,6 +117,7 @@ function initialState(model: DiagnosticModel): State {
 export class EpisodeService {
   private readonly db: EpisodeStore;
   private readonly pendingAgents = new Map<string, Set<AgentTrace["graph"]>>();
+  private readonly pendingTutor = new Map<string, Promise<PublicView>>();
   private static readonly MAX_ACTIONS_PER_EPISODE = 64;
 
   constructor(store: EpisodeStore | string = ":memory:") {
@@ -231,6 +234,20 @@ export class EpisodeService {
     });
   }
 
+  async tutor(id: string): Promise<PublicView> {
+    const current = await this.get(id);
+    if (current.status !== "active") throw new ConflictError("AI tutoring is available while a case is active.");
+    const skill = current.tutor?.skill;
+    if (!skill) throw new ConflictError("There is no AI lesson to suggest yet.");
+    if (current.tutor?.trace) return current;
+    const key = `${id}|${current.revision}|${skill}`;
+    const pending = this.pendingTutor.get(key);
+    if (pending) return pending;
+    const run = this.recordTutor(id, current.revision, skill).finally(() => this.pendingTutor.delete(key));
+    this.pendingTutor.set(key, run);
+    return run;
+  }
+
   private async fold(id: string, model: DiagnosticModel, executor: SqlExecutor): Promise<State> {
     const state = initialState(model);
     const rows = await executor.all<{ type: string; payload_json: string }>("SELECT type, payload_json FROM events WHERE episode_id = ? ORDER BY seq", id);
@@ -261,6 +278,21 @@ export class EpisodeService {
       if (stored.type !== "AGENT_RUN") state.revision += 1;
     }
     return state;
+  }
+
+  private tutorSkill(state: State, model: DiagnosticModel): TutorSkill | undefined {
+    if (state.status !== "active") return undefined;
+    if (state.pendingChallenge?.triggers.some((trigger) => trigger.kind === "same-prediction")) return "design_discriminating_tests";
+    if (state.pendingChallenge?.triggers.some((trigger) => trigger.kind === "premature-elimination")) return "separate_evidence_from_belief";
+    const latest = state.observations.at(-1);
+    if (!latest) return undefined;
+    const before = consistentHypotheses(model, state.observations.slice(0, -1));
+    const after = consistentHypotheses(model, state.observations);
+    return before.length > 1 && after.length >= before.length ? "plan_under_a_budget" : undefined;
+  }
+
+  private tutorTrace(state: State, skill: TutorSkill): AgentTrace | undefined {
+    return [...state.traces].reverse().find((trace) => trace.graph === "tutor" && trace.skill === skill && trace.revision === state.revision);
   }
 
   private async apply(id: string, state: State, action: Action, definition: CaseDefinition, tx: SqlExecutor): Promise<void> {
@@ -383,6 +415,11 @@ export class EpisodeService {
     if (state.diagnosis) view.diagnosis = state.diagnosis;
     if (state.score) view.score = state.score;
     if (state.revealedTruth) view.truthHypothesis = state.revealedTruth;
+    const tutorSkill = this.tutorSkill(state, model);
+    if (tutorSkill) {
+      const tutorTrace = this.tutorTrace(state, tutorSkill);
+      view.tutor = tutorTrace ? { skill: tutorSkill, trace: tutorTrace } : { skill: tutorSkill };
+    }
     if (state.status === "evaluated") {
       view.forecastTable = model.forecasts;
       const policy = optimalPolicy(model);
@@ -420,6 +457,20 @@ export class EpisodeService {
       };
     }
     await this.append(id, "AGENT_RUN", { trace });
+  }
+
+  private async recordTutor(id: string, revision: number, skill: TutorSkill): Promise<PublicView> {
+    const trace = await runTutor(skill, revision);
+    return this.db.transaction(async (tx) => {
+      const episode = await tx.get<{ case_id: string }>("SELECT case_id FROM episodes WHERE id = ? FOR UPDATE", id);
+      if (!episode) throw new NotFoundError("Episode not found.");
+      const definition = getCase(episode.case_id);
+      if (!definition) throw new Error("Episode data is corrupted.");
+      const state = await this.fold(id, definition.model, tx);
+      if (state.revision !== revision || this.tutorSkill(state, definition.model) !== skill) throw new ConflictError("The investigation changed before the AI lesson was ready. Try again.");
+      if (!this.tutorTrace(state, skill)) await this.append(id, "AGENT_RUN", { trace }, tx);
+      return this.publicView(id, await this.fold(id, definition.model, tx), definition);
+    });
   }
 
   private trackAgent(id: string, graph: AgentTrace["graph"], run: () => Promise<void>): void {

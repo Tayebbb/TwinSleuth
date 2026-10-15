@@ -139,6 +139,26 @@ describe("HTTP API contract", () => {
     await app.close();
   });
 
+  it("serves a cached AI tutor lesson only after a deterministic trigger and rate limits requests", async () => {
+    const app = appForTest();
+    const created = await app.inject({ method: "POST", url: "/api/episodes", payload: {} });
+    const started = created.json<{ id: string; revision: number }>();
+    const unavailable = await app.inject({ method: "POST", url: `/api/episodes/${started.id}/tutor`, payload: {} });
+    expect(unavailable.statusCode).toBe(409);
+    const challenged = await app.inject({ method: "POST", url: `/api/episodes/${started.id}/actions`, payload: {
+      actionId: "tutor-trigger", expectedRevision: started.revision,
+      action: { type: "propose", probeId: "P1", predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" } },
+    } });
+    const lesson = await app.inject({ method: "POST", url: `/api/episodes/${started.id}/tutor`, remoteAddress: "203.0.113.40", payload: {} });
+    expect(lesson.statusCode).toBe(200);
+    expect(lesson.json()).toMatchObject({ revision: challenged.json<{ revision: number }>().revision, tutor: { skill: "design_discriminating_tests", trace: { graph: "tutor", status: "fallback" } } });
+    expect(lesson.body).not.toContain("truthHypothesis");
+    for (let index = 0; index < 9; index += 1) await app.inject({ method: "POST", url: `/api/episodes/${started.id}/tutor`, remoteAddress: "203.0.113.40", payload: {} });
+    const limited = await app.inject({ method: "POST", url: `/api/episodes/${started.id}/tutor`, remoteAddress: "203.0.113.40", payload: {} });
+    expect(limited.statusCode).toBe(429);
+    await app.close();
+  });
+
   it("covers create, fetch, replay, validation, stale revision, and unknown episode routes", async () => {
     const app = appForTest();
     const created = await app.inject({ method: "POST", url: "/api/episodes", payload: {} });

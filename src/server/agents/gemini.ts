@@ -11,17 +11,17 @@ function parseObject(content: string): unknown {
   return JSON.parse(content.slice(start, end + 1)) as unknown;
 }
 
-async function invoke(prompt: string, graph: "skeptic" | "examiner"): Promise<unknown> {
+async function invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): Promise<unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is required to call Gemini.");
   const model = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(graph === "tutor" ? 6_000 : 20_000),
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: `${prompt}\n\nReturn only a JSON object with exactly one string field named ${graph === "skeptic" ? "question" : "feedback"}. Do not use Markdown fences.` }] }],
-      generationConfig: { responseMimeType: "application/json", maxOutputTokens: graph === "skeptic" ? 180 : 300 },
+      contents: [{ role: "user", parts: [{ text: `${prompt}\n\n${graph === "tutor" ? "Return only a JSON object with exactly two string fields named lesson and reflection. Do not use Markdown fences." : `Return only a JSON object with exactly one string field named ${graph === "skeptic" ? "question" : "feedback"}. Do not use Markdown fences.`}` }] }],
+      generationConfig: { responseMimeType: "application/json", maxOutputTokens: graph === "skeptic" ? 180 : graph === "tutor" ? 220 : 300 },
     }),
   });
   if (!response.ok) throw new Error(`Gemini request failed with HTTP ${response.status}.`);

@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { ZodError } from "zod";
 import { EpisodeService, ConflictError, NotFoundError, ValidationError } from "./episode-service.js";
-import { episodeStartRequestSchema } from "./schemas.js";
+import { episodeStartRequestSchema, tutorRequestSchema } from "./schemas.js";
 import { CASES, getCase } from "./case-model/registry.js";
 
 function publicError(error: unknown): { code: number; message: string } {
@@ -22,6 +22,7 @@ export function buildApp(service = new EpisodeService()) {
   const allowOrigin = (origin: string | undefined) => !origin || allowedOrigins.has(origin);
   const episodeStartWindows = new Map<string, { startedAt: number; count: number }>();
   const actionWindows = new Map<string, { startedAt: number; count: number }>();
+  const tutorWindows = new Map<string, { startedAt: number; count: number }>();
   const withinRateLimit = (windows: Map<string, { startedAt: number; count: number }>, key: string, limit: number): boolean => {
     const now = Date.now();
     const current = windows.get(key);
@@ -57,6 +58,9 @@ export function buildApp(service = new EpisodeService()) {
     if (/^\/api\/episodes\/[^/]+\/actions$/.test(request.url.split("?")[0] ?? "")) {
       if (!withinRateLimit(actionWindows, request.ip, 120)) return reply.code(429).send({ error: "Action limit reached. Try again in a minute." });
     }
+    if (/^\/api\/episodes\/[^/]+\/tutor$/.test(request.url.split("?")[0] ?? "")) {
+      if (!withinRateLimit(tutorWindows, request.ip, 10)) return reply.code(429).send({ error: "AI tutor limit reached. Try again in a minute." });
+    }
   });
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/cases", async () => CASES.map(({ public: entry }) => ({ id: entry.id, title: entry.title, symptom: entry.symptom })));
@@ -85,6 +89,13 @@ export function buildApp(service = new EpisodeService()) {
   });
   app.get("/api/episodes/:id/export", async (request, reply) => {
     try { return await service.export((request.params as { id: string }).id); }
+    catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
+  });
+  app.post("/api/episodes/:id/tutor", async (request, reply) => {
+    try {
+      tutorRequestSchema.parse(request.body);
+      return await service.tutor((request.params as { id: string }).id);
+    }
     catch (error) { const result = publicError(error); return reply.code(result.code).send({ error: result.message }); }
   });
   app.delete("/api/episodes/:id", async (request, reply) => {

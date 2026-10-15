@@ -24,8 +24,9 @@ type View = {
   evidenceTimeline: { evidenceId: string; supported: string[] }[];
   revealedForecasts: Partial<Record<string, Record<string, string>>>;
   forecastTable?: Record<string, Record<string, string>>;
-  traces: { graph: string; status: string; inputSummary: string; output: string }[];
-  pendingAgents?: ("skeptic" | "examiner")[];
+  traces: { graph: string; status: string; inputSummary: string; output: string; skill?: string; revision?: number; lesson?: string; reflection?: string }[];
+  pendingAgents?: ("skeptic" | "examiner" | "tutor")[];
+  tutor?: { skill: "design_discriminating_tests" | "separate_evidence_from_belief" | "plan_under_a_budget"; trace?: { graph: "tutor"; status: "model" | "fallback"; inputSummary: string; output: string; skill: string; revision: number; lesson: string; reflection: string } };
   debrief?: { probeLessons: { probeId: string; informative: boolean; remaining: string[]; lesson: string }[]; betterNextProbe?: string; pathLesson: string };
   public: { hypotheses: { id: string; title: string; detail: string }[]; probes: { id: string; title: string; description: string; costMinutes: number; outcomes: readonly string[] }[]; symptom: { task: string; controllerCode: string; message: string; estop: string }; maintenanceLog: readonly string[]; colleagueNote: string; unsafeAction: { id: string; label: string } };
 };
@@ -45,7 +46,7 @@ const viewSchema = z.object({
   diagnosis: z.object({ diagnosis: hypothesisIdSchema, confidence: z.number(), justification: z.string(), claims: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.enum(["supports", "rules_out"]), evidenceIds: z.array(z.string()) })) }).optional(),
   score: z.object({ total: z.number(), diagnosis: z.number(), evidenceSufficiency: z.number(), predictionAccuracy: z.number(), probeQuality: z.number(), reasoning: z.number(), claimChecks: z.array(z.object({ hypothesisId: hypothesisIdSchema, stance: z.string(), valid: z.boolean(), reason: z.string() })), actualCostMinutes: z.number(), bestPolicyBranchCostMinutes: z.number(), evidenceSupportedHypotheses: z.array(hypothesisIdSchema) }).optional(),
   truthHypothesis: hypothesisIdSchema.optional(), beliefTimeline: z.array(z.object({ revision: z.number(), beliefs: z.array(hypothesisIdSchema) })), evidenceTimeline: z.array(z.object({ evidenceId: z.string(), supported: z.array(hypothesisIdSchema) })),
-  revealedForecasts: z.partialRecord(probeIdSchema, predictionSchema), forecastTable: z.record(probeIdSchema, predictionSchema).optional(), traces: z.array(z.object({ graph: z.string(), status: z.string(), inputSummary: z.string(), output: z.string() })), pendingAgents: z.array(z.enum(["skeptic", "examiner"])).optional(), debrief: z.object({ probeLessons: z.array(z.object({ probeId: z.string(), informative: z.boolean(), remaining: z.array(z.string()), lesson: z.string() })), betterNextProbe: z.string().optional(), pathLesson: z.string() }).optional(),
+  revealedForecasts: z.partialRecord(probeIdSchema, predictionSchema), forecastTable: z.record(probeIdSchema, predictionSchema).optional(), traces: z.array(z.object({ graph: z.enum(["skeptic", "examiner", "tutor"]), status: z.enum(["template", "model", "fallback"]), inputSummary: z.string(), output: z.string(), skill: z.string().optional(), revision: z.number().int().nonnegative().optional(), lesson: z.string().optional(), reflection: z.string().optional() })), pendingAgents: z.array(z.enum(["skeptic", "examiner", "tutor"])).optional(), tutor: z.object({ skill: z.enum(["design_discriminating_tests", "separate_evidence_from_belief", "plan_under_a_budget"]), trace: z.object({ graph: z.literal("tutor"), status: z.enum(["model", "fallback"]), inputSummary: z.string(), output: z.string(), skill: z.string(), revision: z.number().int().nonnegative(), lesson: z.string(), reflection: z.string() }).optional() }).optional(), debrief: z.object({ probeLessons: z.array(z.object({ probeId: z.string(), informative: z.boolean(), remaining: z.array(z.string()), lesson: z.string() })), betterNextProbe: z.string().optional(), pathLesson: z.string() }).optional(),
   public: z.object({ hypotheses: z.array(z.object({ id: hypothesisIdSchema, title: z.string(), detail: z.string() })), probes: z.array(z.object({ id: probeIdSchema, title: z.string(), description: z.string(), costMinutes: z.number(), outcomes: z.array(outcomeIdSchema) })), symptom: z.object({ task: z.string(), controllerCode: z.string(), message: z.string(), estop: z.string() }), maintenanceLog: z.array(z.string()), colleagueNote: z.string(), unsafeAction: z.object({ id: z.string(), label: z.string() }) }),
 });
 
@@ -119,6 +120,8 @@ function App() {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
   const [actionPending, setActionPending] = useState(false);
+  const [tutorPending, setTutorPending] = useState(false);
+  const [tutorDismissed, setTutorDismissed] = useState(false);
   const [selectedProbe, setSelectedProbe] = useState<string>("P1");
   const [predictions, setPredictions] = useState<Record<string, string>>({ H1: "", H2: "", H3: "", H4: "" });
   const [justification, setJustification] = useState("");
@@ -162,6 +165,7 @@ function App() {
     if (parsed.success) setHistory(parsed.data);
   }).catch(() => undefined);
   useEffect(() => { refreshHistory(); }, [view?.id, view?.revision]);
+  useEffect(() => { setTutorDismissed(false); }, [view?.id, view?.revision]);
   useEffect(() => {
     if (!view || !view.pendingAgents?.length) return;
     let stopped = false;
@@ -215,6 +219,18 @@ function App() {
     finally { setActionPending(false); }
   };
   const submitProposal = () => void act({ type: "propose", probeId: selectedProbe, predictions });
+  const learnSkill = async () => {
+    if (tutorPending) return;
+    try {
+      setTutorPending(true);
+      setError("");
+      const response = await fetch(`/api/episodes/${view.id}/tutor`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}", signal: AbortSignal.timeout(requestTimeoutMs) });
+      if (!response.ok) throw new Error(await responseMessage(response, "The AI tutor could not prepare a lesson. Your case is unchanged."));
+      setView(await readView(response));
+    } catch (e) {
+      setError((e as Error).name === "TimeoutError" ? "The AI tutor took too long. Your case is unchanged; try again." : (e as Error).message);
+    } finally { setTutorPending(false); }
+  };
   const reviseForecast = () => {
     if (selectedProbe === "P1") {
       setSelectedProbe("P3");
@@ -313,6 +329,7 @@ function App() {
         <div className="forecast-matrix"><div className="matrix-head"><span>Cause</span><span>Expected result before the test</span></div>{view.public.hypotheses.map((hypothesis) => <label className="prediction-row" key={hypothesis.id}><b>{hypothesis.id}</b><select aria-label={`Prediction for ${hypothesis.id}`} value={predictions[hypothesis.id]} disabled={Boolean(view.proposals[selectedProbe])} onChange={(event) => setPredictions((current) => ({ ...current, [hypothesis.id]: event.target.value }))}><option value="">Choose an outcome</option>{probe?.outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabels[outcome] ?? outcome}</option>)}</select></label>)}</div>
         <div className="prediction-actions"><button className="commit" disabled={actionPending || view.public.hypotheses.some(({ id }) => !predictions[id])} onClick={submitProposal}>Commit prediction table</button></div>
         {view.skeptic && <div className="skeptic" role="status"><div className="skeptic-heading"><div><b>Skeptic check · {view.skeptic.probeId}</b><small>Review what this test can distinguish</small></div></div><p>{skepticRationale}</p><p className="forecast-lock-note">Your prediction is saved. Choose whether to switch tests or run this one.</p><details><summary>How to read this check</summary><p>Compare the predictions for the causes named above. If they match, this test will not tell those causes apart.</p></details><div className="skeptic-actions"><button className="revise" onClick={reviseForecast}>{selectedProbe === "P1" ? "Try P3 instead" : "Choose another test"}</button><button className="run-anyway" onClick={() => void act({ type: "skeptic-decision", decision: "run-anyway" })}>Run {selectedProbe} anyway</button></div></div>}
+        {view.tutor && !tutorDismissed && <aside className="ai-tutor" aria-label="AI tutor"><div className="ai-tutor-heading"><div><b>AI Tutor</b><small>{view.tutor.skill.replaceAll("_", " ")}</small></div><button className="tutor-close" aria-label="Dismiss AI tutor" onClick={() => setTutorDismissed(true)}>×</button></div>{view.tutor.trace ? <><span className={`tutor-source ${view.tutor.trace.status}`}>{view.tutor.trace.status === "model" ? "Gemini response" : "Guided fallback"}</span><p>{view.tutor.trace.lesson}</p><p className="tutor-reflection"><b>Reflect:</b> {view.tutor.trace.reflection}</p></> : <><p>A short lesson is available for this reasoning moment. It will not change your case or score.</p><button className="learn" disabled={tutorPending} onClick={() => void learnSkill()}>{tutorPending ? "Preparing lesson…" : "Learn this skill"}</button></>}</aside>}
         {view.proposals[selectedProbe] && !view.skeptic && (selectedProbeObservation
           ? <div className="run-ready"><span><i aria-hidden="true"/> This probe has already run</span><a className="review-observation" href="#evidence" onClick={() => setSelectedEvidenceId(selectedProbeObservation.evidenceId)}>Review its observation in the evidence ledger</a></div>
           : <div className="run-ready"><span><i aria-hidden="true"/> Prediction saved</span><button className="run" disabled={actionPending} onClick={() => void act({ type: "run", probeId: selectedProbe })}>Run {selectedProbe}<span>Reveal the result</span></button></div>)}

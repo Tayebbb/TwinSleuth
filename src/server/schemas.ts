@@ -3,6 +3,7 @@ const hypothesisId = z.string().min(1).max(40);
 const probeId = z.string().min(1).max(40);
 
 export const episodeStartRequestSchema = z.object({ caseId: z.string().min(1).max(80).optional() }).strict();
+export const tutorRequestSchema = z.object({}).strict();
 
 export const predictionSetSchema = z.record(hypothesisId, z.string());
 

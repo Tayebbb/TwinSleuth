@@ -33,4 +33,14 @@ describe("Gemini production provider", () => {
     expect(url).toContain("models/gemini-test:generateContent?key=test-key");
     expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", maxOutputTokens: 180 } });
   });
+
+  it("uses the bounded tutor response contract", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"lesson":"Compare predictions first.","reflection":"What would separate them?"}' }] } }] }), { status: 200 }));
+    globalThis.fetch = fetchMock;
+
+    await expect(defaultGeminiClient()!.invoke("Teach a generic skill.", "tutor")).resolves.toEqual({ lesson: "Compare predictions first.", reflection: "What would separate them?" });
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(request.body as string)).toMatchObject({ generationConfig: { responseMimeType: "application/json", maxOutputTokens: 220 } });
+  });
 });

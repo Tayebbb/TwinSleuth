@@ -35,6 +35,23 @@ describe("event-backed episode service", () => {
     service.close();
   });
 
+  it("offers and caches a deterministic tutor skill without changing the episode revision", async () => {
+    const service = new EpisodeService();
+    const started = await service.start("H1");
+    const challenged = await service.act(started.id, action({
+      type: "propose", probeId: "P1", predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" },
+    }, started.revision));
+    expect(challenged.tutor?.skill).toBe("design_discriminating_tests");
+    const first = await service.tutor(challenged.id);
+    const second = await service.tutor(challenged.id);
+    expect(first.revision).toBe(challenged.revision);
+    expect(second.revision).toBe(challenged.revision);
+    expect(first.tutor?.trace).toMatchObject({ graph: "tutor", status: "fallback", skill: "design_discriminating_tests" });
+    const replay = JSON.stringify(await service.replay(challenged.id));
+    expect(replay).not.toMatch(/truth_hypothesis_id|forecastTable/);
+    service.close();
+  });
+
   it("runs a complete deterministic episode and is idempotent", async () => {
     const service = new EpisodeService();
     let view = await service.start("H1");

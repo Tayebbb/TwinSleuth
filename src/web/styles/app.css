@@ -147,6 +147,18 @@ blockquote span { display: block; margin-bottom: 3px; color: var(--ink-muted); f
 .skeptic-actions button { min-height: 44px; border-radius: 5px; font-size: .79rem; }
 .skeptic .revise { border-color: var(--signal-deep); background: var(--signal-deep); }
 .skeptic .run-anyway { border-color: #c88c82; background: transparent; color: #703a36; }
+.ai-tutor { margin-top: 12px; border-top: 1px solid #8baec6; padding: 10px 0 0; color: #244c69; }
+.ai-tutor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ai-tutor-heading div { display: grid; gap: 1px; }
+.ai-tutor-heading b { font-size: .84rem; }
+.ai-tutor-heading small { color: #496b83; font-size: .74rem; text-transform: capitalize; }
+.tutor-close { min-height: 28px; min-width: 28px; border: 0; background: transparent; color: #496b83; font-size: 1.2rem; line-height: 1; }
+.tutor-source { display: inline-block; margin-top: 7px; border-radius: 999px; padding: 2px 7px; font: 600 .68rem/1 var(--font-data); text-transform: uppercase; }
+.tutor-source.model { background: #dcecf5; color: #245474; }
+.tutor-source.fallback { background: #f2ead9; color: #765e2c; }
+.ai-tutor > p { margin: 8px 0; font-size: .84rem; line-height: 1.45; }
+.ai-tutor .tutor-reflection { color: #1d425d; }
+.learn { min-height: 44px; border-color: #2b668c; background: #2b668c; border-radius: 5px; font-size: .79rem; }
 .run-ready { margin-top: 11px; border-top: 1px solid #b6c9bd; padding-top: 9px; }
 .run-ready > span { display: block; margin-bottom: 7px; color: #296449; font-size: .77rem; }
 .run-ready > span i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--confirmed); }

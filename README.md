@@ -24,7 +24,8 @@ flowchart LR
     D -- Yes --> G[Run probe and spend simulated time]
     F --> G
     G --> H[Compare prediction with observation]
-    H --> I[Cite evidence and defend diagnosis]
+    H --> T[Optional AI tutor teaches a general reasoning skill]
+    T --> I[Cite evidence and defend diagnosis]
     I --> J[Deterministic score and debrief]
 ```
 
@@ -59,9 +60,11 @@ flowchart LR
     Episode -->|public projection| UI
     Episode -->|after diagnosis| Examiner[Optional Gemini Examiner]
     Examiner -->|validated advisory text only| UI
+    Episode -->|skill tag only| Tutor[Optional Gemini AI Tutor]
+    Tutor -->|validated lesson or curated fallback| UI
 ```
 
-The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional post-diagnosis Examiner can explain checked claims, but its output cannot change the truth, diagnosis, score, or episode state.
+The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional Gemini AI Tutor appears after a deterministic reasoning signal and teaches a general skill without receiving case evidence, forecasts, diagnoses, scores, or learner text. The post-diagnosis Examiner and Tutor can only provide validated advisory text; neither can change truth, diagnosis, score, or episode state. If Gemini is unavailable, the Tutor shows a clearly labeled curated lesson.
 
 ## Run locally
 
@@ -76,9 +79,9 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The local API runs on port 
 
 ## Deploy
 
-Vercel builds the Vite client and serves the Fastify API from `api/`. Neon Postgres supplies durable hosted storage through the server-side `DATABASE_URL` environment variable. The Vercel Neon integration manages that secret; never commit it. The optional Examiner remains disabled unless `GEMINI_API_KEY` is configured.
+Vercel builds the Vite client and serves the Fastify API from `api/`. Neon Postgres supplies durable hosted storage through the server-side `DATABASE_URL` environment variable. The Vercel Neon integration manages that secret; never commit it. Gemini-powered Tutor and Examiner features remain disabled unless `GEMINI_API_KEY` is configured.
 
-Optional Examiner feedback uses `GEMINI_API_KEY`. Copy `.env.example` to `.env` and set the key there; it stays server-side and is ignored by Git.
+Optional Tutor and Examiner feedback use `GEMINI_API_KEY`. Copy `.env.example` to `.env` and set the key there; it stays server-side and is ignored by Git.
 
 ## Verify the project
 

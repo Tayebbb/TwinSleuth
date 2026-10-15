@@ -14,9 +14,9 @@ The submission gallery highlights the learning loop, checked debrief, and second
 
 ![Second playable case: Conveyor Index Drift](https://raw.githubusercontent.com/Tayebbb/TwinSleuth/main/submission/screenshots/07-conveyor-case.png)
 
-The five-minute demo follows a PIN-9 refusal case from the initial `SAFETY_REJECT` through prediction, a deterministic Skeptic challenge, P3 and P4 observations, an evidence-backed diagnosis, and a deterministic debrief. It demonstrates the server-owned truth boundary and the full no-provider path.
+The five-minute demo follows a PIN-9 refusal case from the initial `SAFETY_REJECT` through prediction, a deterministic Skeptic challenge, P3 and P4 observations, an evidence-backed diagnosis, and a deterministic debrief. It demonstrates the server-owned truth boundary and the full no-provider path. The repository also includes an optional, learner-opened AI Tutor: after a deterministic reasoning signal, it teaches one general diagnostic skill and asks an unscored reflection question.
 
-TwinSleuth is simulated practice, not a digital twin, industrial safety system, or validated learning intervention. It runs completely in deterministic template mode without a provider key; `GEMINI_API_KEY` enables optional structured Examiner feedback with one retry and deterministic fallback. The Skeptic remains deterministic.
+TwinSleuth is simulated practice, not a digital twin, industrial safety system, or validated learning intervention. It runs completely in deterministic template mode without a provider key. `GEMINI_API_KEY` enables optional structured Gemini Tutor and Examiner feedback; the Tutor has a six-second, one-attempt budget and immediately shows a clearly labeled curated lesson when inference is unavailable. It receives only a server-selected general skill tag, never case data, forecasts, scores, learner text, or hidden truth. The Skeptic remains deterministic.
 
 ## Local verification
 
