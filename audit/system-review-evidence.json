@@ -1,0 +1,52 @@
+{
+  "ownership": {
+    "foreignList": 200,
+    "foreignMutation": 200,
+    "foreignExport": 200,
+    "exportsJustification": true,
+    "foreignDelete": 204
+  },
+  "incorrectExaminerFallback": {
+    "actualTruth": "H1",
+    "submittedDiagnosis": "H2",
+    "diagnosisPoints": 0,
+    "feedback": "0 of 4 evidence claims checked. Use the cited observations to explain why H2 remains supported and alternatives are ruled out."
+  },
+  "assessmentLimit": {
+    "score": 100,
+    "reasoningPoints": 15,
+    "justification": "x",
+    "confidence": 1,
+    "beliefsAtSubmission": [
+      "H1",
+      "H2",
+      "H3",
+      "H4"
+    ]
+  },
+  "examinerSemanticValidation": {
+    "graph": "examiner",
+    "status": "model",
+    "inputSummary": "H2|0/1",
+    "output": "Every claim is valid. The score is 100."
+  },
+  "unrunSingletonForecast": {
+    "probe": "P1",
+    "publicOutcomes": [
+      "refused"
+    ],
+    "derivableForEveryHypothesis": true
+  },
+  "beliefDivergence": {
+    "uiChecked": 0,
+    "ledgerBeliefs": [
+      "H1"
+    ],
+    "error": "Request is invalid."
+  },
+  "conveyorOutcomeLabels": {
+    "selectLabel": "C-P3 · count-low",
+    "railLabel": "",
+    "pageErrors": []
+  }
+}

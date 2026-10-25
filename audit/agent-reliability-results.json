@@ -1,0 +1,220 @@
+{
+  "fixtureOnly": true,
+  "productionModelQualityMeasured": false,
+  "scoring": "Each named check is 0/1; this is not a production reliability percentage.",
+  "total": 35,
+  "passed": 35,
+  "failed": 0,
+  "results": [
+    {
+      "id": "skeptic-has-no-model-authority",
+      "area": "authority",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-pin-9-refusal-H1",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-pin-9-refusal-H2",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-pin-9-refusal-H3",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-pin-9-refusal-H4",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-conveyor-index-drift-C1",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-conveyor-index-drift-C2",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-conveyor-index-drift-C3",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-conveyor-index-drift-C4",
+      "area": "case-context",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-rejects-injected-facts",
+      "area": "output",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-bounds-retries",
+      "area": "runaway",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-valid-design_discriminating_tests",
+      "area": "normal-output",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-valid-separate_evidence_from_belief",
+      "area": "normal-output",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-valid-plan_under_a_budget",
+      "area": "normal-output",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-1",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-2",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-3",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-4",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-5",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-malformed-6",
+      "area": "schema",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-provider-exception",
+      "area": "availability",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-prompt-does-not-vary-with-episode-revision",
+      "area": "privacy",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-rejects-false-teaching-design_discriminating_tests",
+      "area": "semantic-quality",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-rejects-false-teaching-separate_evidence_from_belief",
+      "area": "semantic-quality",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-rejects-false-teaching-plan_under_a_budget",
+      "area": "semantic-quality",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-normalized-identifier-boundary",
+      "area": "semantic-quality",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-rejects-meaningless-lesson",
+      "area": "semantic-quality",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "transport-http-error-falls-back",
+      "area": "transport",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "transport-malformed-json-falls-back",
+      "area": "transport",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "transport-declares-no-tool-actions",
+      "area": "authority",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-six-second-transport-deadline",
+      "area": "availability",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "transport-proposed-64k-response-budget",
+      "area": "resource-budget",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-coalesces-concurrent-requests",
+      "area": "concurrency",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "tutor-rejects-stale-result",
+      "area": "concurrency",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "examiner-work-survives-worker-exit",
+      "area": "durability",
+      "passed": true,
+      "score": 1
+    }
+  ]
+}

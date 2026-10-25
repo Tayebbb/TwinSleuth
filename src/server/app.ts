@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { EpisodeService, ConflictError, NotFoundError, ValidationError } from "./episode-service.js";
 import { episodeStartRequestSchema, tutorRequestSchema } from "./schemas.js";
 import { CASES, getCase } from "./case-model/registry.js";
+import { createHash, randomBytes } from "node:crypto";
 
 function publicError(error: unknown): { code: number; message: string } {
   if (error instanceof ConflictError || error instanceof NotFoundError || error instanceof ValidationError) return { code: error.statusCode, message: error.message };
@@ -13,6 +14,18 @@ function publicError(error: unknown): { code: number; message: string } {
 
 export function buildApp(service = new EpisodeService()) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
+  const secureSession = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+  const cookieName = secureSession ? "__Host-twinsleuth_session" : "twinsleuth_session";
+  const sessionToken = (cookie: string | undefined): string | undefined => {
+    const matches = (cookie ?? "").split(";").map((part) => part.trim()).filter((part) => part.startsWith(`${cookieName}=`));
+    if (matches.length !== 1) return undefined;
+    const token = matches[0]!.slice(cookieName.length + 1);
+    return /^[a-f0-9]{64}$/.test(token) ? token : undefined;
+  };
+  const ownerHash = (cookie: string | undefined) => {
+    const token = sessionToken(cookie);
+    return token ? createHash("sha256").update(token).digest("hex") : "";
+  };
   const allowedOrigins = new Set([
     process.env.UI_ORIGIN,
     process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
@@ -62,9 +75,22 @@ export function buildApp(service = new EpisodeService()) {
       if (!withinRateLimit(tutorWindows, request.ip, 10)) return reply.code(429).send({ error: "AI tutor limit reached. Try again in a minute." });
     }
   });
+  app.addHook("preHandler", async (request, reply) => {
+    // Every per-episode endpoint shares this guard, including read/export/delete.
+    if (!request.routeOptions.url?.startsWith("/api/episodes/:id")) return;
+    try {
+      await service.assertOwner((request.params as { id: string }).id, ownerHash(request.headers.cookie));
+    } catch (error) {
+      const result = publicError(error);
+      return reply.code(result.code).send({ error: result.message });
+    }
+  });
+  app.addHook("onSend", async (request, reply) => {
+    if (request.url.startsWith("/api/episodes")) reply.header("Cache-Control", "private, no-store");
+  });
   app.get("/api/health", async () => ({ ok: true }));
   app.get("/api/cases", async () => CASES.map(({ public: entry }) => ({ id: entry.id, title: entry.title, symptom: entry.symptom })));
-  app.get("/api/episodes", async () => service.list());
+  app.get("/api/episodes", async (request) => service.list(ownerHash(request.headers.cookie)));
   app.post("/api/episodes", async (request, reply) => {
     try {
       const start = episodeStartRequestSchema.parse(request.body);
@@ -73,7 +99,12 @@ export function buildApp(service = new EpisodeService()) {
       const demoTruth = process.env.DEMO_TRUTH;
       const definition = getCase(caseId)!;
       const truth = definition.model.hypotheses.some(({ id }) => id === demoTruth) ? demoTruth : undefined;
-      return await service.start(caseId, truth);
+      const suppliedToken = sessionToken(request.headers.cookie);
+      const existingToken = suppliedToken && await service.hasSession(ownerHash(request.headers.cookie)) ? suppliedToken : undefined;
+      const token = existingToken ?? randomBytes(32).toString("hex");
+      const episode = await service.start(caseId, truth, createHash("sha256").update(token).digest("hex"));
+      if (!existingToken) reply.header("Set-Cookie", `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000${secureSession ? "; Secure" : ""}`);
+      return episode;
     } catch (error) {
       const result = publicError(error);
       return reply.code(result.code).send({ error: result.message });

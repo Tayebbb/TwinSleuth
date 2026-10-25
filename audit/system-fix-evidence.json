@@ -1,0 +1,59 @@
+{
+  "ownership": {
+    "foreignList": 200,
+    "listsAnotherSession": false,
+    "foreignMutation": 404,
+    "foreignExport": 404,
+    "exportsJustification": false,
+    "foreignDelete": 404
+  },
+  "incorrectExaminerFallback": {
+    "actualTruth": "H1",
+    "submittedDiagnosis": "H2",
+    "diagnosisPoints": 0,
+    "feedback": "0 of 4 evidence claims checked. H1: Cite at least one observation from this episode. Recheck the cited observation before defending this claim."
+  },
+  "assessmentLimit": {
+    "score": 100,
+    "reasoningPoints": 15,
+    "justification": "x",
+    "confidence": 1,
+    "beliefsAtSubmission": [
+      "H1",
+      "H2",
+      "H3",
+      "H4"
+    ]
+  },
+  "examinerSemanticValidation": {
+    "graph": "examiner",
+    "status": "fallback",
+    "inputSummary": "H2|0/1",
+    "output": "0 of 1 evidence claims checked. H2: Not supported. Recheck the cited observation before defending this claim.",
+    "diagnostics": {
+      "reason": "rejected_output",
+      "elapsedMs": 28,
+      "contractVersion": "2026-10-25.1"
+    }
+  },
+  "unrunSingletonForecast": {
+    "probe": "P1",
+    "publicOutcomes": [
+      "refused",
+      "completed"
+    ],
+    "derivableForEveryHypothesis": false
+  },
+  "beliefDivergence": {
+    "uiChecked": 1,
+    "ledgerBeliefs": [
+      "H1"
+    ],
+    "error": "Request is invalid."
+  },
+  "conveyorOutcomeLabels": {
+    "selectLabel": "C-P3 · Count low",
+    "railLabel": "Count low",
+    "pageErrors": []
+  }
+}

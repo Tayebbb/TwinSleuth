@@ -23,7 +23,7 @@ export function validateCase(model: DiagnosticModel): CaseValidation {
 
   for (const probe of model.probes) {
     if (!Number.isFinite(probe.costMinutes) || probe.costMinutes <= 0) issues.push(`${probe.id} cost must be finite and positive.`);
-    if (probe.outcomes.length < 1 || new Set(probe.outcomes).size !== probe.outcomes.length) issues.push(`${probe.id} needs unique possible outcomes.`);
+    if (probe.outcomes.length < 2 || new Set(probe.outcomes).size !== probe.outcomes.length) issues.push(`${probe.id} needs at least two unique prediction outcomes to keep its unrun forecast private.`);
 
     const row = model.forecasts[probe.id];
     if (!row) {

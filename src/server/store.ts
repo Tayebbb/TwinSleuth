@@ -19,6 +19,7 @@ const schema = `
   CREATE TABLE IF NOT EXISTS episode_secrets (episode_id TEXT PRIMARY KEY, truth_hypothesis_id TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS events (episode_id TEXT NOT NULL, seq INTEGER NOT NULL, type TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (episode_id, seq));
   CREATE TABLE IF NOT EXISTS actions (episode_id TEXT NOT NULL, action_id TEXT NOT NULL, request_hash TEXT NOT NULL, status TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY (episode_id, action_id));
+  CREATE TABLE IF NOT EXISTS episode_owners (episode_id TEXT PRIMARY KEY, owner_hash TEXT NOT NULL);
 `;
 
 function postgresSql(sql: string): string {

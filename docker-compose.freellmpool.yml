@@ -1,0 +1,10 @@
+services:
+  freellmpool:
+    image: ghcr.io/0xzr/freellmpool:0.13.0
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - freellmpool-data:/home/freellmpool/.config/freellmpool
+
+volumes:
+  freellmpool-data:

@@ -1,5 +1,15 @@
 # Decisions
 
+- 2026-10-25: Tutor models select complete versioned server-authored lesson/reflection pairs. NFKC normalization precedes matching; rendering uses canonical bank text. Mixed pairs, disguised IDs, meaningless and newly generated text fall back. The optional teaching flow remains available without a provider.
+- 2026-10-25: Both transports limit actual streamed response bytes to 64 KiB before JSON parsing and request at most 1,024 output tokens. Agent deadlines are six seconds for Tutor and twenty seconds total for Examiner, including retries, with transport cancellation.
+- 2026-10-25: Examiner baseline feedback is an AGENT_RUN event in the evaluation transaction. Optional model focus starts only after commit. Legacy evaluated ledgers lacking feedback gain one idempotent baseline event from checked claims; score/revision are unchanged. Model execution itself is optional and is not a durable queued job.
+- 2026-10-25: Reason codes, elapsed milliseconds and contract versions stay in private agent events. Views, replay, export and action caches strip diagnostics. Background storage failure emits a fixed, sanitized server error. `npm test` now includes the 35-case offline reliability gate.
+
+- 2026-10-24: Browser ownership uses an opaque 256-bit HttpOnly session cookie; only its SHA-256 hash is stored in an additive `episode_owners` table. All episode routes and history enforce ownership. Existing ownerless records remain stored and inaccessible; no first-visitor claiming or deletion migration.
+- 2026-10-24: Unrun forecast privacy applies through evaluation, replay, export, and idempotent responses. P1 offers two public prediction choices. Archives contain observed rows only. Accuracy excludes unrun proposals to close the correctness-count oracle; first commits remain in the ledger. Scoring weights and categories are unchanged. Repeated practice can still teach the authored model; no claim of secrecy against prior knowledge.
+- 2026-10-24: Examiner models select a feedback focus from deterministic checked-claim sentences. Shape-valid but contradictory free text is rejected and retried/falls back. This closes semantic misinformation without giving the model scoring authority.
+- 2026-10-24: UI labels the unchanged `reasoning` points as Evidence claims and explains that justification/confidence are recorded, not graded. No independent-competence or learning-gain claim is added.
+
 - The Skeptic stays deterministic. Its challenge trigger can vary with the evidence-consistent candidate set, which is already derivable from revealed observations; generic challenge wording would require a product decision.
 - `npm run capture:demo` regenerates the reviewer screenshots. The five-minute narrated MP4 is a separate, fixed submission asset.
 - Next Byte Hacks V5's overview and rules conflict on video length, eligibility, and judging criteria. The submission follows the rules-page video limit; leave the submitter's eligibility unasserted until confirmed.

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
@@ -6,12 +6,132 @@ import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { EpisodeService } from "./episode-service.js";
 import { PIN9_MODEL } from "./case-model/pin9.js";
+import { SqliteStore, type EpisodeStore } from "./store.js";
 
 function action(type: object, revision: number, actionId: string = randomUUID()) {
   return { actionId, expectedRevision: revision, action: type };
 }
 
 describe("event-backed episode service", () => {
+  it("does not recreate agent events after an episode is deleted during optional inference", async () => {
+    const backing = new SqliteStore();
+    let deleted = false;
+    let finish!: () => void;
+    const completed = new Promise<void>((done) => { finish = done; });
+    const store: EpisodeStore = {
+      all: backing.all.bind(backing), get: backing.get.bind(backing), run: backing.run.bind(backing), close: backing.close.bind(backing),
+      transaction: async (work) => {
+        try { return await backing.transaction(work); }
+        finally { if (deleted) finish(); }
+      },
+    };
+    let release!: (response: Response) => void;
+    let received!: () => void;
+    const began = new Promise<void>((done) => { received = done; });
+    const response = new Promise<Response>((done) => { release = done; });
+    vi.stubEnv("TWINSLEUTH_TESTING_MODE", "1");
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => { received(); return response; });
+    const errors = vi.spyOn(console, "error");
+    const service = new EpisodeService(store);
+    try {
+      let view = await service.start("H1");
+      view = await service.act(view.id, action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "Delete while optional feedback runs.",
+        claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+      }, view.revision));
+      await began;
+      await service.delete(view.id);
+      deleted = true;
+      release(new Response(JSON.stringify({ output_text: JSON.stringify({ feedback: view.traces.find(({ graph }) => graph === "examiner")!.output }) })));
+      await completed;
+      await new Promise((done) => setImmediate(done));
+      expect(await backing.all("SELECT * FROM events WHERE episode_id = ?", view.id)).toEqual([]);
+      expect(await backing.all("SELECT * FROM episodes WHERE id = ?", view.id)).toEqual([]);
+      expect(errors).not.toHaveBeenCalled();
+    } finally { fetch.mockRestore(); errors.mockRestore(); vi.unstubAllEnvs(); service.close(); }
+  });
+  it("repairs missing feedback in legacy evaluated ledgers once without changing score or revision", async () => {
+    const store = new SqliteStore();
+    const service = new EpisodeService(store);
+    let view = await service.start("H1");
+    try {
+      view = await service.act(view.id, action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "Legacy interruption fixture.",
+        claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+      }, view.revision));
+      const baseline = await store.get<{ seq: number }>("SELECT seq FROM events WHERE episode_id = ? AND type = 'AGENT_RUN'", view.id);
+      expect(baseline).toBeTruthy();
+      await store.run("DELETE FROM events WHERE episode_id = ? AND type = 'AGENT_RUN'", view.id);
+      await store.run("UPDATE events SET seq = seq - 1 WHERE episode_id = ? AND seq > ?", view.id, baseline!.seq);
+      const repaired = await Promise.all([service.get(view.id), service.get(view.id)]);
+      for (const current of repaired) {
+        expect(current.traces.filter(({ graph }) => graph === "examiner")).toHaveLength(1);
+        expect(current.score).toEqual(view.score);
+        expect(current.revision).toBe(view.revision);
+      }
+      const replay = await service.replay(view.id) as { seq: number; type: string }[];
+      expect(replay.filter(({ type }) => type === "AGENT_RUN")).toHaveLength(1);
+      expect(replay.map(({ seq }) => seq)).toEqual(replay.map((_, index) => index));
+    } finally { service.close(); }
+  });
+  it("does not start optional inference or commit partial feedback when evaluation rolls back", async () => {
+    const backing = new SqliteStore();
+    const store: EpisodeStore = {
+      all: backing.all.bind(backing), get: backing.get.bind(backing), run: backing.run.bind(backing), close: backing.close.bind(backing),
+      transaction: (work) => backing.transaction((tx) => work({ ...tx, run: async (sql, ...params) => {
+        if (sql.startsWith("INSERT INTO actions")) throw new Error("fixture action-cache failure");
+        await tx.run(sql, ...params);
+      } })),
+    };
+    const service = new EpisodeService(store);
+    vi.stubEnv("TWINSLEUTH_TESTING_MODE", "1");
+    const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("fixture blocks network"));
+    try {
+      const view = await service.start("H1");
+      await expect(service.act(view.id, action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "Rollback fixture.",
+        claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+      }, view.revision))).rejects.toThrow("fixture action-cache failure");
+      expect(fetch).not.toHaveBeenCalled();
+      expect(await service.get(view.id)).toEqual(view);
+      expect(await service.replay(view.id)).toHaveLength(1);
+    } finally { fetch.mockRestore(); vi.unstubAllEnvs(); service.close(); }
+  });
+
+  it("keeps agent diagnostics in the private ledger and out of views, replay, exports, and retries", async () => {
+    const store = new SqliteStore();
+    const service = new EpisodeService(store);
+    let view = await service.start("H1");
+    try {
+      view = await service.act(view.id, action({ type: "propose", probeId: "P1", predictions: PIN9_MODEL.forecasts.P1! }, view.revision));
+      view = await service.tutor(view.id);
+      expect(view.tutor?.trace).toBeTruthy();
+      const request = action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "Telemetry fixture.",
+        claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+      }, view.revision);
+      view = await service.act(view.id, request);
+      const privateRows = await store.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE episode_id = ? AND type = 'AGENT_RUN'", view.id);
+      expect(privateRows.map(({ payload_json }) => JSON.parse(payload_json).trace.diagnostics).filter(Boolean)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ reason: "provider_disabled", contractVersion: "2026-10-25.1", elapsedMs: expect.any(Number) }),
+        expect.objectContaining({ reason: "baseline", elapsedMs: 0 }),
+      ]));
+      for (const visible of [view, await service.get(view.id), await service.replay(view.id), await service.export(view.id), await service.act(view.id, request)]) {
+        expect(JSON.stringify(visible)).not.toMatch(/diagnostics|contractVersion|elapsedMs|provider_disabled/);
+      }
+    } finally { service.close(); }
+  });
+  it("commits Examiner baseline feedback with evaluation instead of waiting for background work", async () => {
+    const service = new EpisodeService();
+    let view = await service.start("H1");
+    try {
+      view = await service.act(view.id, action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "No tests yet.",
+        claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+      }, view.revision));
+      expect(view.status).toBe("evaluated");
+      expect(view.traces.find(({ graph }) => graph === "examiner")?.output).toContain("0 of 4 evidence claims checked");
+      expect(view.pendingAgents).toEqual([]);
+    } finally {
+      while ((await service.get(view.id)).pendingAgents.length) await new Promise((done) => setTimeout(done, 5));
+      service.close();
+    }
+  });
   it("starts, validates, exports, and permanently deletes a local conveyor episode", async () => {
     const service = new EpisodeService();
     const view = await service.start("conveyor-index-drift", "C1");
@@ -33,6 +153,47 @@ describe("event-backed episode service", () => {
     expect(JSON.stringify(view)).not.toContain("truth");
     expect(JSON.stringify(view)).not.toContain('"forecasts"');
     service.close();
+  });
+
+  it("keeps unrun authored rows and their accuracy private after evaluation, replay, export, and retry", async () => {
+    const service = new EpisodeService();
+    let view = await service.start("H1");
+    view = await service.act(view.id, action({ type: "propose", probeId: "P4", predictions: PIN9_MODEL.forecasts.P4! }, view.revision));
+    if (view.skeptic) view = await service.act(view.id, action({ type: "skeptic-decision", decision: "run-anyway" }, view.revision));
+    const locked = action({ type: "lock", diagnosis: "H1", confidence: 1, justification: "No test has been run.",
+      claims: PIN9_MODEL.hypotheses.map(({ id }) => ({ hypothesisId: id, stance: id === "H1" ? "supports" : "rules_out", evidenceIds: [] })),
+    }, view.revision);
+    view = await service.act(view.id, locked);
+    expect(view.truthHypothesis).toBe("H1");
+    expect(view.forecastTable).toEqual({});
+    expect(view.revealedForecasts).toEqual({});
+    expect(view.score).toMatchObject({ predictionAccuracy: 0, correctPredictions: 0, predictionCount: 0 });
+    expect((await service.act(view.id, locked)).forecastTable).toEqual({});
+    const exported = await service.export(view.id);
+    expect(exported.episode.forecastTable).toEqual({});
+    const scoreEvent = (await service.replay(view.id)).find((event) => (event as { type: string }).type === "EVALUATED") as { payload: { score: { correctPredictions: number } } };
+    expect(scoreEvent.payload.score.correctPredictions).toBe(0);
+    expect(exported.events).toEqual(await service.replay(view.id));
+    service.close();
+  });
+
+  it("persists ownership across a store restart and leaves legacy ownerless records inaccessible", async () => {
+    const filename = join(tmpdir(), `twinsleuth-owner-${randomUUID()}.sqlite`);
+    let service = new EpisodeService(filename);
+    const owned = await service.start("pin-9-refusal", "H1", "owner-hash");
+    const legacy = await service.start("H1");
+    service.close();
+    service = new EpisodeService(filename);
+    await expect(service.assertOwner(owned.id, "owner-hash")).resolves.toBeUndefined();
+    await expect(service.assertOwner(owned.id, "other-hash")).rejects.toThrow("Episode not found.");
+    await expect(service.assertOwner(legacy.id, "owner-hash")).rejects.toThrow("Episode not found.");
+    expect((await service.list("owner-hash")).map(({ id }) => id)).toEqual([owned.id]);
+    await service.delete(owned.id);
+    await expect(service.assertOwner(owned.id, "owner-hash")).rejects.toThrow("Episode not found.");
+    service.close();
+    rmSync(filename, { force: true });
+    rmSync(`${filename}-shm`, { force: true });
+    rmSync(`${filename}-wal`, { force: true });
   });
 
   it("offers and caches a deterministic tutor skill without changing the episode revision", async () => {

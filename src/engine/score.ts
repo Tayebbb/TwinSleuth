@@ -3,7 +3,7 @@ import type { ArgumentClaim, DiagnosticModel, Observation, PredictionSet } from 
 import { optimalPolicy, policyCostForTruth } from "./optimal-policy.js";
 
 export interface PredictionAttempt {
-  /** Use the first committed prediction set for each unique proposed probe. */
+  /** Keep first commits; accuracy is assessed only after that probe is observed. */
   readonly probeId: Observation["probeId"];
   readonly predictions: PredictionSet;
 }
@@ -143,6 +143,8 @@ export function gradeEpisode(model: DiagnosticModel, input: GradeInput): GradeBr
     if (predictionIssues.length > 0) {
       throw new Error(`Invalid prediction table for ${attempt.probeId}: ${predictionIssues.join(" ")}`);
     }
+    // Grading an unrun row creates an answer-key oracle through the accuracy count.
+    if (!observedProbeIds.has(attempt.probeId)) continue;
     for (const { id } of model.hypotheses) {
       predictionCount += 1;
       if (attempt.predictions[id] === model.forecasts[attempt.probeId]![id]) correctPredictions += 1;

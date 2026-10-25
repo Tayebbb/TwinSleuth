@@ -24,7 +24,7 @@ export const HYPOTHESES = [
 export type HypothesisId = (typeof HYPOTHESES)[number]["id"];
 
 export const PROBE_OUTCOMES = {
-  P1: ["refused"],
+  P1: ["refused", "completed"],
   P2: ["refused", "completed"],
   P3: ["refused", "completed"],
   P4: ["stopped-at-95", "full-range"],

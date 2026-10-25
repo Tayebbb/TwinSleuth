@@ -40,15 +40,17 @@ The submitted walkthrough follows the fixed PIN-9 path. Screenshots below show t
 
 ![Skeptic explains why the first forecast cannot narrow the causes](submission/screenshots/02-skeptic-challenge.png)
 
-![Optional Gemini tutor gives a general lesson after the deterministic Skeptic signal](submission/screenshots/08-ai-tutor.png)
+![Optional AI tutor gives a general lesson after the deterministic Skeptic signal](submission/screenshots/08-ai-tutor.png)
 
 ![Debrief score breakdown and evidence claims](submission/screenshots/05-debrief.png)
 
 ![Conveyor Index Drift practice case](submission/screenshots/07-conveyor-case.png)
 
+The debrief’s **Evidence claims** points measure structured citation validity. Written justification and confidence are recorded, not scored. Prediction accuracy uses first commits only for probes actually run; abandoned forecasts remain in the ledger without correctness feedback. Debrief archives include only observed probe rows. A practice score, especially on a repeated fixed case or with coaching, does not establish independent competence.
+
 ## How it is built
 
-The server keeps the selected fault and unrun forecasts private. Deterministic code owns probe outcomes, evidence validity, the remaining candidate set, budget, diagnosis, and score. The browser only receives public case data, committed forecasts, and observations after a probe has run. Local runs use SQLite; the hosted Vercel API uses Neon Postgres for durable episode and event storage.
+The server keeps the selected fault and unrun forecasts private. Deterministic code owns probe outcomes, evidence validity, the remaining candidate set, budget, diagnosis, and score. The browser only receives public case data, committed forecasts, and observations after a probe has run. Local runs use SQLite; the hosted Vercel API uses Neon Postgres for durable episode and event storage. A server-issued, HttpOnly session cookie isolates episode history, reads, exports, actions, and deletion to the owning browser. Hosted cookies are Secure and use the __Host- prefix. Clearing the cookie removes access; it does not delete stored episodes. Pre-upgrade records without ownership remain stored but are not exposed through the API.
 
 ```mermaid
 flowchart LR
@@ -60,13 +62,13 @@ flowchart LR
     Episode --> Local[(Local SQLite ledger)]
     Episode --> Hosted[(Neon Postgres ledger)]
     Episode -->|public projection| UI
-    Episode -->|after diagnosis| Examiner[Optional Gemini Examiner]
-    Examiner -->|validated advisory text only| UI
-    Episode -->|skill tag only| Tutor[Optional Gemini AI Tutor]
-    Tutor -->|validated lesson or curated fallback| UI
+    Episode -->|after diagnosis| Examiner[Optional OpenAI Examiner]
+    Examiner -->|checked feedback selection only| UI
+    Episode -->|approved skill lessons only| Tutor[Optional OpenAI AI Tutor]
+    Tutor -->|approved lesson selection or fallback| UI
 ```
 
-The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional Gemini AI Tutor appears after a deterministic reasoning signal and teaches a general skill without receiving case evidence, forecasts, diagnoses, scores, or learner text. The post-diagnosis Examiner and Tutor can only provide validated advisory text; neither can change truth, diagnosis, score, or episode state. If Gemini is unavailable, the Tutor shows a clearly labeled curated lesson. The five-minute demo includes a live Gemini tutor interaction.
+The complete practice flow works without an AI provider or API key. The Skeptic is deterministic. The optional OpenAI AI Tutor appears after a deterministic reasoning signal and teaches a general skill without receiving case evidence, forecasts, diagnoses, scores, or learner text. The post-diagnosis Examiner selects from feedback strings derived from deterministic claim checks; arbitrary model prose is rejected. The Tutor selects an approved lesson/reflection pair for the selected skill; mixed pairs and new model prose are rejected. Baseline Examiner feedback commits with the score, and optional model focus runs after commit. Provider bodies are capped at 64 KiB before parsing, generated output at 1,024 tokens, and total inference time at six seconds for Tutor / twenty seconds for Examiner. Private ledger diagnostics record outcome reason, elapsed time, and contract version; they are excluded from learner responses and exports. Neither can change truth, diagnosis, score, or episode state. If OpenAI is unavailable, the Tutor shows a clearly labeled curated lesson. The five-minute demo uses OpenAI when `TWINSLEUTH_TESTING_MODE=0`.
 
 ## Run locally
 
@@ -81,16 +83,16 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The local API runs on port 
 
 ## Deploy
 
-Vercel builds the Vite client and serves the Fastify API from `api/`. Neon Postgres supplies durable hosted storage through the server-side `DATABASE_URL` environment variable. The Vercel Neon integration manages that secret; never commit it. Gemini-powered Tutor and Examiner features remain disabled unless `GEMINI_API_KEY` is configured.
+Vercel builds the Vite client and serves the Fastify API from `api/`. Neon Postgres supplies durable hosted storage through the server-side `DATABASE_URL` environment variable. The Vercel Neon integration manages that secret; never commit it. OpenAI-powered Tutor and Examiner features remain disabled unless `OPENAI_API_KEY` is configured.
 
-Optional Tutor and Examiner feedback use `GEMINI_API_KEY`. Copy `.env.example` to `.env` and set the key there; it stays server-side and is ignored by Git.
+Optional Tutor and Examiner feedback use the server-side `OPENAI_API_KEY` when `TWINSLEUTH_TESTING_MODE=0`. Set `TWINSLEUTH_TESTING_MODE=1` only for local testing: it uses FreeLLMPool at `FREELLMPOOL_BASE_URL` and never calls OpenAI. Start the pool with `docker compose -f docker-compose.freellmpool.yml up -d`. Copy `.env.example` to `.env`; it stays ignored by Git.
 
 ## Verify the project
 
 ```sh
 npm run validate:case
 npm run typecheck
-npm test
+npm test # includes the offline reliability evals
 npm run build
 npm run test:e2e
 npm run capture:demo

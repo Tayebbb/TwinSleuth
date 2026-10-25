@@ -7,10 +7,12 @@ import { optimalPolicy } from "../engine/optimal-policy.js";
 import type { ArgumentClaim, Observation, PredictionSet, DiagnosticModel } from "../engine/model.js";
 import { CASES, getCase } from "./case-model/registry.js";
 import type { CaseDefinition } from "./case-model/registry.js";
-import { runExaminer } from "./agents/examiner.js";
+import { runExaminer, examinerTemplate } from "./agents/examiner.js";
+import { defaultModelClient } from "./agents/model-client.js";
+import { publicAgentTrace } from "./agents/agent-runtime.js";
 import { runSkeptic } from "./agents/skeptic.js";
 import { runTutor } from "./agents/tutor.js";
-import type { AgentTrace, TutorSkill } from "./agents/types.js";
+import type { AgentTrace, ExaminerAgentInput, StructuredModelClient, TutorSkill } from "./agents/types.js";
 import { SqliteStore, type EpisodeStore, type SqlExecutor } from "./store.js";
 import { type Action, actionRequestSchema } from "./schemas.js";
 
@@ -126,8 +128,20 @@ export class EpisodeService {
 
   close(): void { this.db.close(); }
 
-  async list(): Promise<readonly { id: string; caseId: string; title: string; status: State["status"]; revision: number; createdAt: string }[]> {
-    return (await this.db.all<{ id: string; case_id: string; status: State["status"]; revision: number; created_at: string }>("SELECT id, case_id, status, revision, created_at FROM episodes ORDER BY created_at DESC"))
+  async hasSession(ownerHash: string): Promise<boolean> {
+    return Boolean(await this.db.get("SELECT 1 FROM episode_owners WHERE owner_hash = ? LIMIT 1", ownerHash));
+  }
+
+  async assertOwner(id: string, ownerHash: string): Promise<void> {
+    const owned = await this.db.get("SELECT 1 FROM episode_owners WHERE episode_id = ? AND owner_hash = ?", id, ownerHash);
+    if (!owned) throw new NotFoundError("Episode not found.");
+  }
+
+  async list(ownerHash?: string): Promise<readonly { id: string; caseId: string; title: string; status: State["status"]; revision: number; createdAt: string }[]> {
+    const sql = ownerHash === undefined
+      ? "SELECT id, case_id, status, revision, created_at FROM episodes ORDER BY created_at DESC"
+      : "SELECT e.id, e.case_id, e.status, e.revision, e.created_at FROM episodes e JOIN episode_owners o ON o.episode_id = e.id WHERE o.owner_hash = ? ORDER BY e.created_at DESC";
+    return (await this.db.all<{ id: string; case_id: string; status: State["status"]; revision: number; created_at: string }>(sql, ...(ownerHash === undefined ? [] : [ownerHash])))
       .flatMap((row) => {
         const definition = getCase(row.case_id);
         return definition ? [{ id: row.id, caseId: row.case_id, title: definition.public.title, status: row.status, revision: row.revision, createdAt: row.created_at }] : [];
@@ -145,11 +159,12 @@ export class EpisodeService {
       await tx.run("DELETE FROM actions WHERE episode_id = ?", id);
       await tx.run("DELETE FROM events WHERE episode_id = ?", id);
       await tx.run("DELETE FROM episode_secrets WHERE episode_id = ?", id);
+      await tx.run("DELETE FROM episode_owners WHERE episode_id = ?", id);
       await tx.run("DELETE FROM episodes WHERE id = ?", id);
     });
   }
 
-  async start(caseIdOrTruth = CASES[0]!.public.id, truth?: string): Promise<PublicView> {
+  async start(caseIdOrTruth = CASES[0]!.public.id, truth?: string, ownerHash?: string): Promise<PublicView> {
     // Preserve the original test/demo convenience: start("H1") selects PIN-9 truth.
     const legacyTruth = !getCase(caseIdOrTruth) && CASES[0]!.model.hypotheses.some(({ id }) => id === caseIdOrTruth);
     const caseId = legacyTruth ? CASES[0]!.public.id : caseIdOrTruth;
@@ -163,13 +178,30 @@ export class EpisodeService {
     await this.db.transaction(async (tx) => {
       await tx.run("INSERT INTO episodes VALUES (?, ?, ?, ?, ?)", id, definition.public.id, "active", 0, now);
       await tx.run("INSERT INTO episode_secrets VALUES (?, ?)", id, selected);
+      if (ownerHash) await tx.run("INSERT INTO episode_owners VALUES (?, ?)", id, ownerHash);
       await this.append(id, "EPISODE_STARTED", {}, tx);
     });
     return this.get(id);
   }
 
   async get(id: string): Promise<PublicView> {
-    return this.getWith(id, this.db);
+    const current = await this.getWith(id, this.db);
+    if (current.status === "evaluated" && !current.traces.some(({ graph }) => graph === "examiner")) {
+      // Repair interrupted pre-baseline episodes, once, using checked ledger facts only.
+      await this.db.transaction(async (tx) => {
+        const row = await tx.get<{ case_id: string }>("SELECT case_id FROM episodes WHERE id = ? FOR UPDATE", id);
+        if (!row) throw new NotFoundError("Episode not found.");
+        const definition = getCase(row.case_id);
+        if (!definition) throw new Error("Episode data is corrupted.");
+        const state = await this.fold(id, definition.model, tx);
+        if (state.status === "evaluated" && state.diagnosis && state.score && !state.traces.some(({ graph }) => graph === "examiner")) {
+          const trace = examinerTemplate({ diagnosis: state.diagnosis.diagnosis, justification: state.diagnosis.justification, claims: state.diagnosis.claims, claimChecks: state.score.claimChecks });
+          await this.append(id, "AGENT_RUN", { trace }, tx);
+        }
+      });
+      return this.getWith(id, this.db);
+    }
+    return current;
   }
 
   private async getWith(id: string, executor: SqlExecutor): Promise<PublicView> {
@@ -182,8 +214,7 @@ export class EpisodeService {
   }
 
   async replay(id: string): Promise<unknown[]> {
-    const exists = await this.db.get("SELECT 1 FROM episodes WHERE id = ?", id);
-    if (!exists) throw new NotFoundError("Episode not found.");
+    await this.get(id);
     const episode = await this.db.get<{ case_id: string }>("SELECT case_id FROM episodes WHERE id = ?", id);
     if (!episode) throw new Error("Episode data is corrupted.");
     const definition = getCase(episode.case_id);
@@ -192,6 +223,7 @@ export class EpisodeService {
     return (await this.db.all<{ seq: number; type: string; payload: string }>("SELECT seq, type, payload_json AS payload FROM events WHERE episode_id = ? ORDER BY seq", id)).map((event) => {
       const stored = parseStoredEvent(event.type, event.payload);
       const payload = stored.payload;
+      if (stored.type === "AGENT_RUN" && payload.trace) payload.trace = publicAgentTrace(payload.trace as AgentTrace);
       if (stored.type === "SKEPTIC_CHALLENGED" && state.status !== "evaluated") {
         const challenge = payload.challenge as { triggers?: { kind: string; hypothesisIds?: string[] }[]; probeId?: string } | undefined;
         if (challenge?.triggers) {
@@ -209,7 +241,8 @@ export class EpisodeService {
   async act(id: string, request: unknown): Promise<PublicView> {
     const parsed = actionRequestSchema.parse(request);
     const actionHash = createHash("sha256").update(stableJson(parsed)).digest("hex");
-    return this.db.transaction(async (tx) => {
+    let enhancement: { input: ExaminerAgentInput; client: StructuredModelClient } | undefined;
+    const response = await this.db.transaction(async (tx) => {
       const episode = await tx.get("SELECT 1 FROM episodes WHERE id = ? FOR UPDATE", id);
       if (!episode) throw new NotFoundError("Episode not found.");
       const duplicate = await tx.get<{ request_hash: string; response_json: string }>("SELECT request_hash, response_json FROM actions WHERE episode_id = ? AND action_id = ?", id, parsed.actionId);
@@ -227,11 +260,21 @@ export class EpisodeService {
       const definition = row && getCase(row.case_id);
       if (!definition) throw new Error("Episode data is corrupted.");
       const state = await this.fold(id, definition.model, tx);
-      await this.apply(id, state, parsed.action, definition, tx);
+      const examiner = await this.apply(id, state, parsed.action, definition, tx);
       const response = this.publicView(id, await this.fold(id, definition.model, tx), definition);
+      if (examiner) {
+        const client = defaultModelClient();
+        if (client) { enhancement = { input: examiner, client }; response.pendingAgents = ["examiner"]; }
+      }
       await tx.run("INSERT INTO actions VALUES (?, ?, ?, ?, ?)", id, parsed.actionId, actionHash, "complete", JSON.stringify(response));
       return response;
     });
+    // Optional inference starts only after the score, baseline and action cache commit.
+    if (enhancement) {
+      const { input, client } = enhancement;
+      this.trackAgent(id, "examiner", () => this.recordExaminer(id, input, client));
+    }
+    return response;
   }
 
   async tutor(id: string): Promise<PublicView> {
@@ -295,7 +338,7 @@ export class EpisodeService {
     return [...state.traces].reverse().find((trace) => trace.graph === "tutor" && trace.skill === skill && trace.revision === state.revision);
   }
 
-  private async apply(id: string, state: State, action: Action, definition: CaseDefinition, tx: SqlExecutor): Promise<void> {
+  private async apply(id: string, state: State, action: Action, definition: CaseDefinition, tx: SqlExecutor): Promise<ExaminerAgentInput | undefined> {
     const { model, public: publicCase } = definition;
     if (state.status === "evaluated") throw new ConflictError("Episode is already evaluated.");
     switch (action.type) {
@@ -366,16 +409,18 @@ export class EpisodeService {
         const next = await this.fold(id, model, tx);
         const score = gradeEpisode(model, { truth: secret.truth_hypothesis_id, diagnosis: action.diagnosis, probes: next.observations, predictionAttempts: Object.entries(next.firstPredictions).map(([probeId, predictions]) => ({ probeId, predictions })), claims: action.claims as ArgumentClaim[], unsafeAttempts: next.unsafeAttempts });
         await this.append(id, "EVALUATED", { score }, tx);
-        this.trackAgent(id, "examiner", () => this.recordExaminer(id, diagnosis, score.claimChecks));
+        const examiner = { diagnosis: diagnosis.diagnosis, justification: diagnosis.justification, claims: diagnosis.claims, claimChecks: score.claimChecks };
+        await this.append(id, "AGENT_RUN", { trace: examinerTemplate(examiner) }, tx);
         await this.append(id, "TRUTH_REVEALED", { truth: secret.truth_hypothesis_id }, tx);
-        return;
+        return examiner;
       }
     }
   }
 
   private async append(id: string, type: string, payload: unknown, executor?: SqlExecutor): Promise<void> {
     const write = async (tx: SqlExecutor) => {
-      await tx.get("SELECT id FROM episodes WHERE id = ? FOR UPDATE", id);
+      const episode = await tx.get("SELECT id FROM episodes WHERE id = ? FOR UPDATE", id);
+      if (!episode) throw new NotFoundError("Episode not found.");
       const row = await tx.get<{ seq: number }>("SELECT COALESCE(MAX(seq), -1) AS seq FROM events WHERE episode_id = ?", id);
       if (!row) throw new Error("Episode data is corrupted.");
       await tx.run("INSERT INTO events VALUES (?, ?, ?, ?, ?)", id, Number(row.seq) + 1, type, JSON.stringify(payload), new Date().toISOString());
@@ -396,7 +441,7 @@ export class EpisodeService {
       id, caseId: publicCase.id, title: publicCase.title, revision: state.revision, status: state.status,
       beliefs: state.beliefs, proposals: state.proposals, revisedPredictions: state.revisions, observations: state.observations,
       remainingMinutes: model.budgetMinutes - state.observations.reduce((sum, observation) => sum + (model.probes.find((probe) => probe.id === observation.probeId)?.costMinutes ?? 0), 0),
-      budgetMinutes: model.budgetMinutes, traces: state.traces,
+      budgetMinutes: model.budgetMinutes, traces: state.traces.map(publicAgentTrace),
       pendingAgents: [...(this.pendingAgents.get(id) ?? [])],
       public: publicCase,
       beliefTimeline: state.beliefTimeline,
@@ -418,10 +463,11 @@ export class EpisodeService {
     const tutorSkill = this.tutorSkill(state, model);
     if (tutorSkill) {
       const tutorTrace = this.tutorTrace(state, tutorSkill);
-      view.tutor = tutorTrace ? { skill: tutorSkill, trace: tutorTrace } : { skill: tutorSkill };
+      view.tutor = tutorTrace ? { skill: tutorSkill, trace: publicAgentTrace(tutorTrace) } : { skill: tutorSkill };
     }
     if (state.status === "evaluated") {
-      view.forecastTable = model.forecasts;
+      // Evaluation reveals the selected cause, not the unused test answer key.
+      view.forecastTable = view.revealedForecasts;
       const policy = optimalPolicy(model);
       const lessons = state.observations.map((observation, index) => {
         const before = consistentHypotheses(model, state.observations.slice(0, index));
@@ -441,20 +487,12 @@ export class EpisodeService {
     return view;
   }
 
-  private async recordExaminer(id: string, diagnosis: State["diagnosis"], claimChecks: ReturnType<typeof gradeEpisode>["claimChecks"]): Promise<void> {
-    if (!diagnosis) return;
-    const valid = claimChecks.filter((claim) => claim.valid).length;
-    const inputSummary = `${diagnosis.diagnosis}|${valid}/${claimChecks.length}`;
+  private async recordExaminer(id: string, input: ExaminerAgentInput, client: StructuredModelClient): Promise<void> {
     let trace;
     try {
-      trace = await runExaminer({ diagnosis: diagnosis.diagnosis, justification: diagnosis.justification, claims: diagnosis.claims, claimChecks });
+      trace = await runExaminer(input, client);
     } catch {
-      trace = {
-        graph: "examiner" as const,
-        status: "fallback" as const,
-        inputSummary,
-        output: `${valid} of ${claimChecks.length} evidence claims checked. Use the cited observations to explain why ${diagnosis.diagnosis} remains supported and alternatives are ruled out.`,
-      };
+      trace = examinerTemplate(input, "fallback");
     }
     await this.append(id, "AGENT_RUN", { trace });
   }
@@ -477,7 +515,11 @@ export class EpisodeService {
     const pending = this.pendingAgents.get(id) ?? new Set<AgentTrace["graph"]>();
     pending.add(graph);
     this.pendingAgents.set(id, pending);
-    void Promise.resolve().then(run).catch(() => undefined).finally(() => {
+    void Promise.resolve().then(run).catch((error: unknown) => {
+      if (error instanceof NotFoundError) return; // The learner deleted this episode while inference was pending.
+      // Baseline feedback remains durable. Never log raw errors, inputs, or secrets.
+      console.error("TwinSleuth optional agent feedback could not be stored.", { graph });
+    }).finally(() => {
       pending.delete(graph);
       if (pending.size === 0) this.pendingAgents.delete(id);
     });

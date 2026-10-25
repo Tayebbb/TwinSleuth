@@ -24,8 +24,8 @@ describe("PostgresStore startup", () => {
 
     await expect(store.all("SELECT 1")).resolves.toEqual([]);
 
-    // One failed schema statement, all four idempotent schema statements on retry, then the query.
-    expect(query).toHaveBeenCalledTimes(6);
+    // One failed schema statement, all five idempotent schema statements on retry, then the query.
+    expect(query).toHaveBeenCalledTimes(7);
     store.close();
   });
 

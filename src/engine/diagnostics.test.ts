@@ -42,6 +42,33 @@ function validProbeSequences(prefix: readonly ModelProbeId[] = [], cost = 0): re
 }
 
 describe("PIN-9 diagnostic case", () => {
+  it("does not disclose an unrun forecast through a singleton public outcome or accuracy score", () => {
+    expect(PIN9_MODEL.probes.every((probe) => probe.outcomes.length > 1)).toBe(true);
+    const singleton = { ...PIN9_MODEL, probes: PIN9_MODEL.probes.map((probe) => probe.id === "P1" ? { ...probe, outcomes: ["refused"] } : probe) };
+    expect(validateCase(singleton).issues).toContain("P1 needs at least two unique prediction outcomes to keep its unrun forecast private.");
+    const score = gradeEpisode(PIN9_MODEL, {
+      truth: "H1", diagnosis: "H1", probes: [],
+      predictionAttempts: [{ probeId: "P1", predictions: { H1: "refused", H2: "refused", H3: "refused", H4: "refused" } }],
+      claims: [], unsafeAttempts: 0,
+    });
+    expect(score.predictionAccuracy).toBe(0);
+    expect(score.correctPredictions).toBe(0);
+    expect(score.predictionCount).toBe(0);
+  });
+
+  it("keeps scoring independent of a different valid unrun forecast row", () => {
+    const input = {
+      truth: "H1", diagnosis: "H1", unsafeAttempts: 0, claims: [],
+      probes: [{ evidenceId: "e1", probeId: "P3", outcomeId: "completed" }],
+      predictionAttempts: [
+        { probeId: "P1", predictions: PIN9_MODEL.forecasts.P1! },
+        { probeId: "P3", predictions: PIN9_MODEL.forecasts.P3! },
+      ],
+    };
+    const changed = { ...PIN9_MODEL, forecasts: { ...PIN9_MODEL.forecasts, P1: { H1: "completed", H2: "completed", H3: "completed", H4: "completed" } } };
+    expect(gradeEpisode(changed, input)).toEqual(gradeEpisode(PIN9_MODEL, input));
+    expect(gradeEpisode(PIN9_MODEL, input)).toMatchObject({ correctPredictions: 4, predictionCount: 4 });
+  });
   it("validates every cause pair and fits the best policy inside the budget", () => {
     const result = validateCase(PIN9_MODEL);
     expect(result.ok).toBe(true);
@@ -197,7 +224,7 @@ describe("PIN-9 diagnostic case", () => {
     expect(score.bestPolicyBranchCostMinutes).toBe(15);
   });
 
-  it("scores the first committed prediction for a challenged probe even when it is not run", () => {
+  it("retains unrun submissions without revealing their correctness through prediction scoring", () => {
     const score = gradeEpisode(PIN9_MODEL, {
       truth: "H1",
       diagnosis: "H1",
@@ -209,9 +236,9 @@ describe("PIN-9 diagnostic case", () => {
       claims: [],
       unsafeAttempts: 0,
     });
-    expect(score.correctPredictions).toBe(4);
-    expect(score.predictionCount).toBe(4);
-    expect(score.predictionAccuracy).toBe(15);
+    expect(score.correctPredictions).toBe(0);
+    expect(score.predictionCount).toBe(0);
+    expect(score.predictionAccuracy).toBe(0);
   });
 
   it("awards exactly 100 for a correct, efficient diagnosis with four evidence-backed claims", () => {

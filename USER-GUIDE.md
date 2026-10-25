@@ -49,7 +49,7 @@ Select one of the six tests. Each test has a simulated cost:
 
 | Probe | Test | Cost | Possible outcomes |
 |---|---|---:|---|
-| P1 | Repeat the same PIN motion at 100% speed | 5 min | Refused |
+| P1 | Repeat the same PIN motion at 100% speed | 5 min | Refused, Completed |
 | P2 | Retry key 9 at 25% speed | 5 min | Refused, Completed |
 | P3 | Press key 3 at 100% speed | 5 min | Refused, Completed |
 | P4 | Slow-jog J2 through its rated range | 10 min | Stopped at 95°, Full range |
@@ -99,9 +99,9 @@ Choose **Lock diagnosis and score** to submit. This ends the episode and opens t
 
 ### 8. Read the debrief
 
-The debrief includes the total score and its five deterministic components: diagnosis, evidence sufficiency, prediction accuracy, probe quality, and reasoning. It also shows checked evidence claims, your belief and evidence timelines, the cost of your path compared with the best policy branch, Examiner feedback, and the revealed server-selected cause.
+The debrief includes the total score and its five deterministic components: diagnosis, evidence sufficiency, prediction accuracy, probe quality, and evidence claims (the internal `reasoning` component). Evidence-claim points check structured citations; written justification and confidence are recorded, not scored. First committed forecasts count toward accuracy only after their probe runs; unrun proposals remain in the ledger without correctness feedback. The forecast archive contains observed probes only, including after evaluation. This practice score does not establish independent competence, and repeating a fixed case can measure familiarity. It also shows checked evidence claims, your belief and evidence timelines, the cost of your path compared with the best policy branch, Examiner feedback, and the revealed server-selected cause.
 
-The Examiner may provide model-generated or template feedback. It does not set the diagnosis or calculate the score. Expand **Agent trace** if you want to see whether feedback came from the model or a fallback.
+Baseline Examiner feedback is saved with your score. A model may later select a feedback focus from deterministic claim checks; interruption leaves the baseline intact. Arbitrary model prose is rejected. It does not set the diagnosis or calculate the score. The optional Tutor also selects from approved general lessons, rather than writing new teaching text. Expand **Agent trace** to see model selection or fallback status.
 
 Choose **Start a fresh episode** to begin again. The episode's hidden cause is selected and evaluated on the server; a new episode may produce a different case path.
 
@@ -129,8 +129,8 @@ After P3, the demo tests the remaining H1/H4 ambiguity with P4. It predicts **St
 
 - **The page does not load:** keep `npm run dev` running and open `http://127.0.0.1:5173`. The API must also be available locally on port 5174.
 - **Agent feedback is a template:** this is expected without an enabled local model proxy or when a model response is unavailable or invalid. The practice flow and deterministic score still work without a model credential.
-- **You need a new attempt:** choose a case under the local practice controls and use **Start selected case**. The local history panel can export learner-visible JSON or delete a stored episode. Deletion removes its rows from this SQLite database, not copies you exported or separate backups.
-- **Scope:** both cases are synthetic. This is a local hackathon MVP, not a hosted classroom or multi-user service. It has not been evaluated for learning outcomes and must not be used to control or diagnose real industrial equipment.
+- **You need a new attempt:** choose a case under the local practice controls and use **Start selected case**. Your episode history can export learner-visible JSON or delete a stored episode. History is linked to this browser’s private session cookie. Clearing cookies removes access without deleting the episodes. Deletion removes rows from the practice service database, not exported copies or separate backups. Episodes created before ownership was added remain stored but are not exposed through the API.
+- **Scope:** both cases are synthetic. This is a practice MVP with anonymous browser-session isolation, not an identified classroom assessment system. It has not been evaluated for learning outcomes and must not be used to control or diagnose real industrial equipment.
 
 ## Optional project checks and demo capture
 

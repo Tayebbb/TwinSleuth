@@ -9,6 +9,8 @@ export interface SkepticAgentInput {
 
 export type TutorSkill = "design_discriminating_tests" | "separate_evidence_from_belief" | "plan_under_a_budget";
 
+export type AgentOutcomeReason = "baseline" | "provider_disabled" | "accepted" | "rejected_output" | "timeout" | "http_error" | "invalid_response" | "response_too_large" | "provider_error";
+
 export interface AgentTrace {
   readonly graph: "skeptic" | "examiner" | "tutor";
   readonly status: "template" | "model" | "fallback";
@@ -18,6 +20,8 @@ export interface AgentTrace {
   readonly revision?: number;
   readonly lesson?: string;
   readonly reflection?: string;
+  /** Private ledger diagnostics. Removed from every learner-visible projection. */
+  readonly diagnostics?: { readonly reason: AgentOutcomeReason; readonly elapsedMs: number; readonly contractVersion: string };
 }
 
 export interface ExaminerAgentInput {
@@ -28,5 +32,5 @@ export interface ExaminerAgentInput {
 }
 
 export interface StructuredModelClient {
-  invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor"): Promise<unknown>;
+  invoke(prompt: string, graph: "skeptic" | "examiner" | "tutor", signal?: AbortSignal): Promise<unknown>;
 }

@@ -29,6 +29,35 @@ test("initial bench fits the 1280x800 work viewport", async ({ page }) => {
   await expectInsideViewport(page, page.getByRole("button", { name: "Commit prediction table" }));
 });
 
+test("rejected belief updates keep controls aligned with accepted ledger state", async ({ page }) => {
+  await page.goto("/");
+  for (const id of ["H2", "H3", "H4"]) {
+    const saved = page.waitForResponse((response) => response.url().endsWith("/actions") && response.request().method() === "POST");
+    await page.getByLabel(`Keep ${id} possible:`).click();
+    expect((await saved).status()).toBe(200);
+  }
+  await page.getByLabel("Keep H1 possible:").click();
+  await expect(page.getByRole("alert")).toContainText("Request is invalid.");
+  await expect(page.getByLabel("Keep H1 possible:")).toBeChecked();
+  await expect(page.locator(".hypotheses input:checked")).toHaveCount(1);
+});
+
+test("stale belief updates reconcile controls with another tab's accepted selection", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByLabel("Keep H1 possible:")).toBeChecked();
+  const history = await page.request.get("/api/episodes");
+  const [episode] = await history.json() as { id: string; revision: number }[];
+  expect(episode).toBeTruthy();
+  const saved = await page.request.post(`/api/episodes/${episode!.id}/actions`, { data: {
+    actionId: "other-tab", expectedRevision: episode!.revision, action: { type: "beliefs", possibleHypotheses: ["H1"] },
+  } });
+  expect(saved.status()).toBe(200);
+  await page.getByLabel("Keep H4 possible:").click();
+  await expect(page.getByRole("alert")).toContainText("latest state is loaded");
+  await expect(page.locator(".hypotheses input:checked")).toHaveCount(1);
+  await expect(page.getByLabel("Keep H1 possible:")).toBeChecked();
+});
+
 test("shows a recoverable error instead of rendering a malformed episode response", async ({ page }) => {
   await page.route("**/api/episodes", async (route) => {
     if (route.request().method() === "POST") await route.fulfill({ contentType: "application/json", body: "{}" });

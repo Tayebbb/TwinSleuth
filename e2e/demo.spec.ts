@@ -83,6 +83,7 @@ test("plays the no-key P1 challenge through the debrief", async ({ page }) => {
   await expect(page.getByText("Your diagnosis has been scored. Review the evidence and debrief.")).toBeVisible();
   await expect(page.getByText("/ 100 points")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Checked evidence claims" })).toBeVisible();
+  await expect(page.locator(".assessment-note")).toContainText("Written justification and confidence are recorded, not scored.");
   await expect(page.getByRole("heading", { name: "Truth revealed" })).toBeVisible();
   await page.getByText("Agent trace").click();
   await expect(page.locator("pre").filter({ hasText: /examiner · (model|fallback|template)/ })).toBeVisible();
